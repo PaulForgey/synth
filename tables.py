@@ -17,7 +17,7 @@ class LogSinTable(Table):
     def __init__(self):
         super(LogSinTable, self).__init__("Sine", "WORD")
 
-        self.data.append((16 << 10)-1)
+        self.data.append(16 << 10)
         for x in range(1,0x400):
             n = (float(x) / 1024.0)
             s = math.sin(n * math.pi / 2.0)
