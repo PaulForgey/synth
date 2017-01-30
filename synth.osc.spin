@@ -585,7 +585,6 @@ smask       long    $7fff_ffff      ' not the sign bit
 lrmask      long    $00_20_00_00    ' DAC load, use to wait one sample
 logmask     long    $3ff << 1       ' lookup table offset mask
 s90         long    $4000_0000      ' phase counter bit indicating 90 degrees
-rate        long    1814            ' 80_000_000 / 44_100.. kind of
 lfsr_taps   long    $8020_0002      ' x^32+x^22+x^2+1
 
 ' global state

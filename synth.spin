@@ -49,6 +49,7 @@ CON
     MIDI_ControlChange  = $b0
     MIDI_ProgramChange  = $c0
     MIDI_PitchBend      = $e0
+    MIDI_SysEx          = $f0
     
     ' midi controller assigments
     ' XXX supporting data entry would be nice
@@ -175,6 +176,8 @@ PRI MidiLoop
                 OnMidiProgramChange
             MIDI_PitchBend:
                 OnMidiPitchBend
+            MIDI_SysEx:
+                OnMidiSysEx
             other:
                 MidiControl_ := 0
 
@@ -220,6 +223,13 @@ PRI OnMidiPitchBend | d
     d := 0
     if MidiData(@d, 2)
         OnPitchBend((d & $7f) | ((d >> 1) & $3f80))
+
+PRI OnMidiSysEx | d
+    d := 0
+    ' be a bastard and use $70, $7f, $7f as our three byte ID hoping it doesn't stample someone
+    if MidiData(@d, 3) and d == $7f7f70
+        result := io.RecvMidiBulk(patch.Buffer, patch#BufferLength)
+        patch.LoadFromMidi(result)
 
 ' parsed MIDI event handling
 PRI OnSustain(Active) | v
@@ -279,15 +289,6 @@ PRI OscLoop | i
     if patch.Reload
         RestartOsc        
         io.DebugStr(STRING("RestartOsc", 13))
-    if patch.Debug
-        io.DebugStr(si.Hex(WORD[tables.ExpPtr], 8))
-        io.DebugChar(13)
-        repeat i from 0 to 7
-            io.DebugChar("0"+i)
-            io.DebugChar(":")
-            io.DebugStr(si.Hex(LONG[patch.LFOOutputPtr(0)], 8))
-            io.DebugChar(13)
-        io.DebugChar(13)
     voice[RunVoice_].Run
     RunVoice_ := (RunVoice_+1) & $7
 

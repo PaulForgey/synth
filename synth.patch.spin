@@ -34,16 +34,16 @@ CON
     Source_LFO3
     Source_LFO4
     
-    Event_Debug         = %00001
-    Event_Reload        = %00010
-    Event_Silence       = %00100
-    Event_MidiConfig    = %01000
-    Event_Redraw        = %10000
+    Event_Reload        = %0001
+    Event_Silence       = %0010
+    Event_MidiConfig    = %0100
+    Event_Redraw        = %1000
 
     #0
     Cmd_None
     Cmd_Load
     Cmd_Save
+    Cmd_Dump
     Cmd_Global
     Cmd_Operators
     Cmd_Envelopes
@@ -59,6 +59,9 @@ OBJ
     io          : "synth.io"
     display     : "synth.oled"
     si          : "string.integer"
+
+CON
+    BufferLength        = data#BufferLength
 
 VAR
     LONG    PitchWheel_                 ' signed, centered at 0
@@ -113,6 +116,33 @@ PUB ProgramChange(Value)
 Handle MIDI program change control message
 }}
     data.ProgramChange(Value)
+
+PUB LoadFromMidi(s) | sptr, dptr, n
+{{
+Decode (in place) received SysEx data
+
+s   : TRUE if received valid data, FALSE to otherwise re-load from flash or failing that, default
+}}
+    if not s
+        OnLoad
+        return
+
+    sptr := data.Buffer
+    dptr := sptr
+
+    repeat CONSTANT(BufferLength / 8)
+        n := BYTE[sptr][7]
+        repeat 7
+            n <<= 1
+            BYTE[dptr++] := BYTE[sptr++] | (n & $80)
+        sptr++
+
+    Events_ |= (Event_Reload | Event_Silence)
+    UpdateAll
+
+PUB Buffer
+    return data.Buffer
+
 '
 ' accessors for engine
 ' 
@@ -172,13 +202,6 @@ Read self clearing event state needing to panic the EGs
     result := Events_ & Event_Silence
     Events_ &= !Event_Silence
 
-PUB Debug
-{{
-Read self clearing event state indicating debug action
-}}
-    result := Events_ & Event_Debug
-    Events_ &= !Event_Debug
-    
 PUB MidiConfig
 {{
 Read self clearing event state indicating the list of MIDI channels has changed
@@ -338,6 +361,8 @@ PRI OnButton(b)
             OnLoad
         Cmd_Save:
             OnSave
+        Cmd_Dump:
+            OnDump
         Cmd_CopyTo:
             OnCopyTo
         Cmd_Operator:
@@ -382,6 +407,28 @@ PRI UpdateAll
 
 PRI OnSave
     data.Save
+
+PRI OnDump | ptr, n, b
+    if UIParam_ == data#Param_Load
+        OnLoad
+    io.DebugStr(STRING("# PATCH DATA "))
+    io.DebugStr(si.Dec(data.PatchNum))
+    io.DebugChar(13)
+    io.DebugStr(STRING("F0 70 7F 7F "))
+    ptr := data.Buffer
+    repeat CONSTANT(BufferLength / 8)
+        ' BufferLength is in groups of 8 for midi format
+        ' Actual data is in that many groups of 7
+        n := 0
+        repeat 7
+            b := BYTE[ptr++]
+            n <<= 1
+            n |= (b & $80) >> 7
+            io.DebugStr(si.Hex(b & $7f, 2))
+            io.DebugChar(" ")
+        io.DebugStr(si.Hex(n, 2))
+        io.DebugChar(13)
+    io.DebugStr(STRING("F7", 13))
 
 PRI OnCopyTo
     data.CopyEnv(data.CopyTo, UIOperator_+1)
@@ -454,8 +501,6 @@ PRI SetValue(v) | ptr
         data#Param_Channel:
             AdjustByte(ptr, v, 0, $f)
             Events_ |= Event_MidiConfig
-        data#Param_Debug:
-            Events_ |= Event_Debug
     ShowValue
 
 PRI AdjustWave(ptr, v)
@@ -535,9 +580,9 @@ PRI ShowSelection
     ' populate the button labels
     case UIParam_
         data#Param_Load:
-            SetButtons(Cmd_None, Cmd_None, Cmd_Load)
+            SetButtons(Cmd_Dump, Cmd_None, Cmd_Load)
         data#Param_Save:
-            SetButtons(Cmd_None, Cmd_Save, Cmd_None)
+            SetButtons(Cmd_Dump, Cmd_Save, Cmd_None)
         data#Param_CopyTo:
             SetButtons(Cmd_Operator, Cmd_CopyTo, Cmd_None)
         data#Param_First_Global..data#Param_Last_Global:
@@ -789,6 +834,7 @@ CmdLabels
 BYTE    "   "
 BYTE    "LOD"
 BYTE    "SAV"
+BYTE    "DMP"
 BYTE    "GBL"
 BYTE    "OPS"
 BYTE    "ENV"

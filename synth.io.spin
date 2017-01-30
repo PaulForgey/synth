@@ -164,11 +164,11 @@ if a non-control byte is in the receive buffer, it is discarded
 PUB RecvMidiData(MsgPtr, Size) | n
 {{
 expect and receive Size bytes of midi data into byte array MsgPtr
-if all Size control bytes canot be read without blocking, return FALSE and do not advance the read buffer
+if all Size control bytes cannot be read without blocking, return FALSE and do not advance the read buffer
 if a control byte is encountered before Size bytes, return all data bytes leaving the control byte in the read buffer
 
-XXX this interface is kind of lame that it does not return the actual number read. This synth is designed to not depend
-    on sysex messages to be variably sized in a way that would require this.
+realtime messages are handled differently by being ignored.
+If they are to ever be handled, it will be over a different mechanism invisible to this method.
 }}
     n := (MidiRecvPtr - MidiReadPtr) & BufMask
     if n < Size
@@ -181,6 +181,23 @@ XXX this interface is kind of lame that it does not return the actual number rea
         BYTE[MsgPtr++] := n
         MidiReadPtr := (MidiReadPtr+1) & BufMask
     
+    return TRUE
+
+PUB RecvMidiBulk(MsgPtr, Size) | n
+{{
+receive, blocking if necessary, Size bytes of large midi data into byte array MsgPtr
+This is callable after reading a header using RecvMidiData, e.g. determining a SYSEX message is relevant
+
+returns FALSE if a control byte (unconsumed) is encountered before Size bytes are read
+}}
+    repeat while Size--
+        repeat while MidiRecvPtr == MidiReadPtr
+        n := MidiBuffer[MidiReadPtr]
+        if n & $80
+            return FALSE
+        BYTE[MsgPtr++] := n
+        MidiReadPtr := (MidiReadPtr+1) & BufMask
+
     return TRUE
 
 PUB DebugChar(b)
@@ -370,6 +387,8 @@ recv
     if_z jmp #:value
 
     cmp :m, #$f0 wc                     ' system common message?
+    if_nc test :m, #$08 wz              ' if system common, realtime?
+    if_nc_and_nz jmp #midi              ' toss realtime
 
     rdword :channel_mask, channel_ptr   ' update channel mask
     or :channel_mask, :all              ' provide a "not filtered" mask
@@ -389,7 +408,7 @@ recv
     wrbyte :m, :mp                      ' store to output
 
     add midi_pos, #1
-    and midi_pos, #(BufSize-1)
+    and midi_pos, #BufMask
     
     wrbyte midi_pos, midi_ptr           ' update waiter to where new data is
 

@@ -1,3 +1,4 @@
 *.binary
+**/*.bin
 synth.tables.spin
 string.integer.spin

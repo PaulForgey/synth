@@ -65,7 +65,6 @@ CON
     Param_LFO_Level
     Param_LFO_Shape
 
-    Param_Debug
     Param_Omni
     Param_Channel
     Param_Save                      ' WORD
@@ -84,6 +83,8 @@ CON
 
     Param_First_LFO                 = Param_LFO_Freq
     Param_Last_LFO                  = Param_LFO_Shape
+
+    BufferLength                    = 160   ' includes Midi encoding overhead
 
 OBJ
     store       : "synth.patch.data.store"
@@ -105,6 +106,7 @@ VAR
     BYTE    PitchFixed_[6]                  ' non-0 to interpret PitchMultipliers_ as fixed pitch   
     BYTE    Transpose_                      ' transposition, in signed note steps
     BYTE    Waves_                          ' bit array of sine/triangle per operator (0=sine, bit 0=operator 1)
+    BYTE    Pad_[5+20]                      ' 135+5=140 for 20 groups of 7, one more byte per group
     ' from here down is not written to NV storage
     BYTE    LabelBuf_[6]
     BYTE    CopyTo_
@@ -118,6 +120,9 @@ Pin: CS pin assigned to flash
     store.Init(Pin)
     Omni_ := TRUE
     LoadDefault
+
+PUB Buffer
+    return @LFOFreqs_
  
 PUB LoadDefault | i, j, ptr
 {{
@@ -146,21 +151,21 @@ PUB ProgramChange(Value)
 Handle program change MIDI control message
 }}
     ' TODO: bank value to get >127
-    PatchNum := Value
+    PatchNum_ := Value
     Load
 
 PUB Load
 {{
 Load selected patch number from NV storage
 }}
-    if not store.Read(PatchNum, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
+    if not store.Read(PatchNum_, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
         LoadDefault
 
 PUB Save
 {{
 Save patch to NV storage at selected patch number
 }}
-    store.Write(PatchNum, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
+    store.Write(PatchNum_, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
 
 PUB ParamLabel(p)
 {{
@@ -311,6 +316,9 @@ Return operator wave bit array
 }}
     return Waves_
 
+PUB PatchNum
+    return PatchNum_
+
 PUB CopyEnv(t, f)
 {{
 Copy envelope sequence f to t
@@ -393,7 +401,7 @@ p: parameter
             return @EGBiases_[(1+o)*2+(p-Param_EG_Bias_Source)]
 
         Param_Load, Param_Save:
-            return @PatchNum
+            return @PatchNum_
 
         Param_Omni:
             return @Omni_
@@ -401,14 +409,10 @@ p: parameter
         Param_Channel:
             return @Channel_
 
-        Param_Debug:
-            return @Zero
-
     abort $10 ' internal error for unhandled parameter
 
 DAT
-Zero        LONG    0
-PatchNum    WORD    0
+PatchNum_   WORD    0
 
 ParamLabels
 BYTE    "ALG "
@@ -446,7 +450,6 @@ BYTE    "COPY"
 BYTE    "FREQ"
 BYTE    "LVL "
 BYTE    "WAVE"
-BYTE    "DBG "
 BYTE    "OMNI"
 BYTE    "CHAN"
 BYTE    "SAVE"
