@@ -84,13 +84,6 @@ VAR
     BYTE    RunVoice_               ' round robin voice idle tasking
 
 PUB Boot | err
-    ' set SPI pins to output, everything high
-    DIRA |= $7f
-    OUTA |= $7f
-    ' reset
-    OUTA &= CONSTANT(!$40)
-    OUTA |= $40
-
     io.Start(Pin_Buttons, Pin_MIDI, Pin_Debug)
     ' start the core I/O module
     err := \Main

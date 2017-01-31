@@ -56,6 +56,7 @@ CON
 
 OBJ
     tables      : "synth.tables"    
+    io          : "synth.io"
 
 VAR
     LONG Cog_
@@ -115,49 +116,30 @@ p           : voice (0-3)
 
 {{
 Initialize the DAC
-CsbPin      : pin assigned to the DAC's control I2C CS
+pin         : pin assigned to the DAC's control SPI CS
 ClkPin      : pin assigned to the DAC's master clock
 }}
-PUB InitDAC(CsbPin, ClkPin) | csb
-    csb := (1 << CsbPin)
-    
-    DIRA |= (csb | (1 << ClkPin))
+PUB InitDAC(pin, ClkPin) | csb
+    DIRA |= (1 << ClkPin)
     CTRA := CONSTANT( %10_100 << 23 ) | ClkPin  ' PLL /8 single ended    
     FRQA := $1210_385d
 
     ' reset
-    ControlDAC( DAC_Reset, csb )
+    io.SendSpi(pin, 16, DAC_Reset)
     ' power up
-    ControlDAC( CONSTANT(DAC_Power | %0011_0111), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_Power | %0011_0111))
     ' set 44.1K, 256x base oversample (11.2896 MHz master clock)
-    ControlDAC( CONSTANT(DAC_Sample | %00_1000_00), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_Sample | %00_1000_00))
     ' set 20 bit DSP mode A
-    ControlDAC( CONSTANT(DAC_IF | %0001_01_11), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_01_11))
     ' select DAC
-    ControlDAC( CONSTANT(DAC_Analog | %10010), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_Analog | %10010))
     ' unmute
-    ControlDAC( CONSTANT(DAC_Digital | 0), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_Digital | 0))
     ' activate
-    ControlDAC( CONSTANT(DAC_Active | 1), csb )
+    io.SendSpi(pin, 16, CONSTANT(DAC_Active | 1))
     ' power up outputs
-    ControlDAC( CONSTANT(DAC_Power | %0010_0111), csb )
-
-PRI ControlDAC(v, csb)
-{{
-Send a 16-bit word to the DAC's control I2c interface
-15..9       : register
-8..0        : value
-}}
-    OUTA &= !csb
-    repeat 16
-        OUTA &= CONSTANT(!%10)
-        if v & $8000
-            OUTA |= 1
-        else
-            OUTA &= CONSTANT(!1)
-        OUTA |= %10
-        v <<= 1
-    OUTA |= csb
+    io.SendSpi(pin, 16, CONSTANT(DAC_Power | %0010_0111))
 
 DAT
     org

@@ -41,8 +41,8 @@ PUB Init(Pin)
 Pin: pin assigned to flash CS
 }}
     CS_ := (1 << Pin)
-    OUTA |= (CLK_1 | DIN_1)
-    DIRA |= (CLK_1 | DIN_1)
+    OUTA |= CONSTANT(CLK_1 | DIN_1) | CS_
+    DIRA |= CONSTANT(CLK_1 | DIN_1) | CS_
     
 PUB Write(Record, Ptr, Length) | sector, p, n
 {{

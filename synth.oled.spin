@@ -22,21 +22,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 }
 
-CON
-    CLK_1   = %10
-    CLK_0   = !%10
-    DIN_1   = %01
-    DIN_0   = !%01
+OBJ
+    io      : "synth.io"
 
 VAR
-    LONG CS_
+    BYTE    Pin_
 
-PUB Init(CS) | x 
+PUB Init(Pin) | x
 {{
 Init OLED display
-CS      : Pin assigned to I2C CS line
+Pin     : Pin assigned to SPI CS line
 }}
-    CS_ := (1 << CS)
+    Pin_ := Pin
+    DIRA |= %100 ' address line
+
     Send(0, $af)
     repeat x from $b0 to $b3
         Send(0, x)
@@ -104,24 +103,16 @@ Clear top left x1,y1 to bottom right x2,y2
 
 PRI Send(a, d) | cs
 {{
-Send I2C byte to display device
+Send SPI byte to display device
 a       : 0 for command, 1 for data
 d       : 8 bit data
 }}
-    OUTA &= !CS_
     if a
         OUTA |= %100
     else
         OUTA &= CONSTANT(!%100)
-    repeat 8
-        OUTA &= CLK_0
-        if d & $80
-            OUTA |= DIN_1
-        else
-            OUTA &= DIN_0
-        OUTA |= CLK_1
-        d <<= 1
-    OUTA |= CS_
+
+    io.SendSpi(Pin_, 8, d)
 
 DAT
 ' 6 bytes per tile

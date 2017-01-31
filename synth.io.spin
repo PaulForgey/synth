@@ -28,7 +28,7 @@ CON
 
 VAR
     LONG    Cog_
-    LONG    Params_[8]
+    LONG    Params_[10]
     LONG    Values_[3]
     LONG    Coarse_
     
@@ -47,7 +47,9 @@ DebugPin    : 0-31 pin for RS232 output (115200 8-1-N)
     Params_[4] := @ChannelMask
     Params_[5] := @MidiBuffer
     Params_[6] := @MidiRecvPtr
-    Params_[7] := @DebugOut
+    Params_[7] := @SpiData
+    Params_[8] := @SpiSize
+    Params_[9] := @DebugOut
 
     ' start MIDI in omni mode for all the channels
     AddAllChannels
@@ -200,6 +202,18 @@ returns FALSE if a control byte (unconsumed) is encountered before Size bytes ar
 
     return TRUE
 
+PUB SendSpi(pin, bits, out)
+{{
+Write to SPI bus
+
+pin     : CS pin
+bits    : size of data (up to 32)
+out     : data to write
+}}
+    repeat while SpiSize
+    SpiData := out >< bits
+    SpiSize := (bits << 5) | pin
+
 PUB DebugChar(b)
 {{
 Send character b out the debug serial output
@@ -248,11 +262,16 @@ entry
     add ptr, #4
     rdword midi_ptr, ptr                ' midi buffer pointer
     add ptr, #4
+    rdword spi_data_ptr, ptr            ' spi output
+    add ptr, #4
+    rdword spi_size_ptr, ptr            ' spi pin/word size
+    add ptr, #4
     rdword debug_ptr, ptr               ' debug output
 
     mov midi_task, #midi
+    mov spi_task, #spi
     mov debug_task, #debug
-    
+
 ' button scanning task
 button
     mov :scan, button_col               ' set rightmost button (0)
@@ -345,14 +364,14 @@ button
 midi
     test midi_pin, INA wz               ' start bit when input goes low
     if_z jmp #recv
-    jmpret midi_task, debug_task
+    jmpret midi_task, spi_task
     jmp #midi
     
 recv
     mov midi_wakeup, midi_start         ' wake up half period in to read in the middle of the bits
     add midi_wakeup, CNT
 :start
-    jmpret midi_task, debug_task
+    jmpret midi_task, spi_task
 
     mov t, midi_wakeup
     sub t, CNT
@@ -365,7 +384,7 @@ recv
     mov :m, #0                          ' clear shift register
     
 :bit
-    jmpret midi_task, debug_task        ' wait for wakeup
+    jmpret midi_task, spi_task          ' wait for wakeup
 
     mov t, midi_wakeup
     sub t, CNT
@@ -420,6 +439,54 @@ recv
 :channel_mask   long    0
 :channel        long    0
 :all            long    $1_0000
+
+' spi output task
+spi
+    or OUTA, #%101_1011                 ' bit 3 is the address line, selectable externally
+    or DIRA, #%101_1011                 ' set all SPI pins as outputs and high (except address line and flash CS)
+
+    andn OUTA, #%100_0000               ' reset
+    mov spi_wakeup, CNT
+    add spi_wakeup, button_clocks
+:reset
+    jmpret spi_task, debug_task
+    mov t, spi_wakeup
+    sub t, CNT
+    cmps t, #0 wc
+    if_nc jmp #:reset
+    or OUTA, #%100_0000
+
+:wait
+    rdword :size, spi_size_ptr wz       ' output waiting?
+    if_nz jmp #:send
+    jmpret spi_task, debug_task
+    jmp #:wait
+
+:send
+    rdlong :out, spi_data_ptr           ' pre bit reversed 
+    mov :cs, #1
+    shl :cs, :size                      ' select CS pin
+    wrword zero, spi_size_ptr           ' acknowledge we got it
+    shr :size, #5                       ' how many bits
+
+    andn OUTA, :cs                      ' CS lo
+:bit
+    andn OUTA, #%10                     ' CLK lo
+    jmpret spi_task, debug_task
+    shr :out, #1 wc
+    muxc OUTA, #1                       ' data bit to DIN
+    jmpret spi_task, debug_task
+    or OUTA, #%10                       ' CLK hi
+    jmpret spi_task, debug_task
+    djnz :size, #:bit
+
+    or OUTA, :cs                        ' CS hi
+    jmp #:wait
+    ' task local registers
+:bits           long    0
+:size           long    0
+:out            long    0
+:cs             long    0
 
 ' debug output task
 debug
@@ -479,14 +546,18 @@ debug_pin       res     1
 channel_ptr     res     1
 midi_buf        res     1
 midi_ptr        res     1
+spi_data_ptr    res     1
+spi_size_ptr    res     1
 debug_ptr       res     1
 
 ' task switch data
 button_wakeup   res     1
 midi_wakeup     res     1
+spi_wakeup      res     1
 debug_wakeup    res     1
 midi_task       res     1
 button_task     res     1
+spi_task        res     1
 debug_task      res     1
 t               res     1
 
@@ -496,6 +567,8 @@ t               res     1
 ' (there is no mutex protection, but only one thread at a time will using
 '  any specific service)
 Buttons         LONG    0[3]
+SpiData         LONG    0
+SpiSize         WORD    0
 ChannelMask     WORD    0
 DebugOut        BYTE    0
 MidiBuffer      BYTE    0[BufSize]
