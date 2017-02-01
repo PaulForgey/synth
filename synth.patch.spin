@@ -299,7 +299,7 @@ PUB SetPitchWheel(Value)
 {{
 Value       : MIDI pitch bend value, 0-$3fff, centered at $2000
 }}
-    PitchWheel_ := ( -(Value - $2000) ) << data.PitchWheelRange
+    PitchWheel_ := ($2000 - Value) << data.PitchWheelRange
 
 PUB SetModulation(Value)
 {{
@@ -312,9 +312,10 @@ PUB Pitches(Note, PitchesPtr) | i, p
 Note        : MIDI note value 00-$7f
 PitchesPtr  : array of 6 longs to receive pitch unit values
 }}
-    Note += data.Transpose
+    ' push it up 21 octaves into the standard midi range, but then allow tranposition down
+    Note += (252 + data.Transpose)
     p := WORD[tables.ScalePtr][Note // 12]
-    p |= ((Note / 12) + 21) << 10
+    p |= (Note / 12) << 10
     
     repeat i from 0 to 5
         if data.PitchFixed(i)
@@ -660,9 +661,9 @@ PRI ShowTranspose(ptr, cptr) | n
     result := ~BYTE[ptr]
     
     ' frame offset of 0 as middle C being C-5
-    n := result + 60
+    n := result + 312
     ByteMove(@ValueBuf_, @BYTE[@Notes][(n//12)*2], 2)
-    ByteMove(@ValueBuf_[2], si.DecPadded(n/12, 3), 3)
+    ByteMove(@ValueBuf_[2], si.DecPadded(n/12 -21, 3), 3)
 
 PRI ShowBool(ptr)
     if BYTE[ptr]
