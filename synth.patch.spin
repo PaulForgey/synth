@@ -233,7 +233,7 @@ Update working envelope definitions from patch values
 PRI Exp(n, b)
 {{
 exp2 of 5.11 value
-b:  result is x.(16-b). e.g. 16 returns an integer, 1 returns a 16.16
+b:  result is x.(16-b). e.g. 16 returns an integer, 0 returns a 16.16
 }}
     result := WORD[$d000][n & $7ff] | $1_0000
     n ~>= 11
@@ -333,9 +333,10 @@ RateScalesPtr   : array of 7 words to receive rate scale values
     repeat i from 1 to 6
         WORD[RateScalesPtr][i] := Exp(data.RateScale(i-1) * Note * 15, 16)
 
-PUB LevelScales(Velocity, LevelScalesPtr) | i, ptr, v, l
+PUB LevelScales(Velocity, Note, LevelScalesPtr) | i, ptr, v, l, s, c
 {{
 Velocity        : MIDI velocity value 00-$7f, 0 for key up
+Note            : MIDI note value 00-$7f, ignored for key up
 LevelScalesPtr  : array of 7 words to receive level scale values
 }}
     if Velocity
@@ -345,11 +346,37 @@ LevelScalesPtr  : array of 7 words to receive level scale values
             ptr += 2
             ' velocity sensitivity is actually floor value, and possibly a cheesy way to handle this
             v := ( Velocity #> ($7f >> data.VelocityScale(i)) ) + 1
-            ' apply 8 bit level setting slightly non-linearly, then scale against 7 bit velocity
+            ' 1 =< v =< $80
+
+            ' apply 8 bit level setting slightly non-linearly into 10 bit value
             l := data.LevelScale(i)
             l <<= ( ((l & $c0) >> 6) - 1 ) #> 0
-            
-            WORD[ptr] := (l * v) >> 7
+            ' 0 =< l =< $3fc
+
+            ' apply velocity
+            l := (l * v) >> 3
+            ' 0 =< l =< $3fc0
+
+            ' key scaling
+            s := (-80 #> (Note - data.Breakpoint(i)) <# $80)
+            c := data.Curve(i)
+
+            if s < 0        ' left
+                ||s
+                s *= data.LKeyScale(i)
+                c >>= 2
+            else
+                s *= data.RKeyScale(i)
+
+            if c & 2        ' exponential
+                s := (s * s) >> 13
+            else
+                s <<= 1     ' linear
+
+            if not (c & 1)  ' down
+                -s
+
+            WORD[ptr] := (0 #> (l + s) <# $4000) >> 4
     else
         repeat i from 0 to 6
             WORD[LevelScalesPtr][i] := 0
@@ -415,7 +442,7 @@ PRI OnDump | ptr, n, b
     io.DebugStr(STRING("# PATCH DATA "))
     io.DebugStr(si.Dec(data.PatchNum))
     io.DebugChar(13)
-    io.DebugStr(STRING("F0 70 7F 7F "))
+    io.DebugStr(STRING("F0 70 7F 7F", 13))
     ptr := data.Buffer
     repeat CONSTANT(BufferLength / 8)
         ' BufferLength is in groups of 8 for midi format
@@ -479,8 +506,6 @@ PRI SetValue(v) | ptr
             AdjustWord(ptr, v, -$8000, $7fff)
         data#Param_Velocity:
             AdjustByte(ptr, v, 0, 7)
-        data#Param_Level:
-            AdjustByte(ptr, v, 0, $ff)
         data#Param_Wave:
             AdjustWave(ptr, v)
             Events_ |= Event_Reload
@@ -502,6 +527,10 @@ PRI SetValue(v) | ptr
         data#Param_Channel:
             AdjustByte(ptr, v, 0, $f)
             Events_ |= Event_MidiConfig
+        data#Param_Curve:
+            AdjustByte(ptr, v, 0, $f)
+        other:
+            AdjustByte(ptr, v, 0, $ff)
     ShowValue
 
 PRI AdjustWave(ptr, v)
@@ -637,10 +666,21 @@ PRI ShowValue | ptr, v, c
             v := ShowEnv(ptr, UIOperator_+1)
         data#Param_Wave:
             v := ShowWave(ptr, UIOperator_)
+        data#Param_Curve:
+            v := ShowCurve(ptr, @c)
+        data#Param_Breakpoint:
+            v := ShowMidiNote(ptr, @c)
         other:
             v := ShowByte(ptr)
     display.Write(2, 10, @ValueBuf_)
     io.SetValue(v, c)
+
+PRI ShowCurve(ptr, cptr)
+    LONG[cptr] := $04
+    result := BYTE[ptr]
+    ByteMove(@ValueBuf_, STRING("L  R "), 5)
+    ValueBuf_[1] := BYTE[@Curves][((result >> 2) & 3) ^ 1]
+    ValueBuf_[4] := BYTE[@Curves][result & 3]
 
 PRI ShowWave(ptr, o)
     result := (BYTE[ptr] >> o) & 1
@@ -659,9 +699,16 @@ PRI ShowAlg(ptr, cptr)
 PRI ShowTranspose(ptr, cptr) | n
     LONG[cptr] := 12
     result := ~BYTE[ptr]
-    
     ' frame offset of 0 as middle C being C-5
-    n := result + 312
+    ShowNote(result + 312)
+
+PRI ShowMidiNote(ptr, cptr) | n
+    LONG[cptr] := 12
+    result := BYTE[ptr]
+    ' MIDI 0 as C-0
+    ShowNote(result + 252)
+
+PRI ShowNote(n)
     ByteMove(@ValueBuf_, @BYTE[@Notes][(n//12)*2], 2)
     ByteMove(@ValueBuf_[2], si.DecPadded(n/12 -21, 3), 3)
 
@@ -843,6 +890,9 @@ BYTE    "LFO"
 BYTE    "CPY"
 BYTE    "OP "
 BYTE    "LFO"
+
+Curves
+BYTE    "\", "/", 16, 15
 
 {{
 This object serves as a controller class between the model class synth.path.data and view classes synth.io and synth.oled

@@ -251,7 +251,7 @@ PRI OnNote(Note, Velocity) | v
         NextVoice_ := (NextVoice_+1) & $7
 
     patch.Pitches(Note, @Pitches_)
-    patch.LevelScales(Velocity, @LevelScales_)
+    patch.LevelScales(Velocity, Note, @LevelScales_)
     patch.RateScales(Note, @RateScales_)
     voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note)
 

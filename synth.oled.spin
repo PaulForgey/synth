@@ -341,7 +341,40 @@ BYTE    %10000000
 BYTE    %10000000
 BYTE    %10000000
 BYTE    %10000000
+
+' 15
+' .....*
+' .....*
+' .....*
+' ....*.
+' ....*.
+' ...*..
+' ..*...
+' **....
+BYTE    %10000000
+BYTE    %10000000
+BYTE    %01000000
+BYTE    %00100000
+BYTE    %00011000
+BYTE    %00000111
+
+' 16
  
+' **....
+' ..*...
+' ...*..
+' ....*.
+' ....*.
+' .....*
+' .....*
+' .....*
+BYTE    %00000001
+BYTE    %00000001
+BYTE    %00000010
+BYTE    %00000100
+BYTE    %00011000
+BYTE    %11100000
+
 ' 5x7 tiles, left to right, LSB on top
 ' 5 bytes per tile (0 written after each char sequence for non drawing tiles)
 Chars

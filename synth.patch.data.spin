@@ -58,6 +58,10 @@ CON
     Param_L4
     Param_R4
     Param_RateScale
+    Param_Breakpoint
+    Param_LKeyScale
+    Param_RKeyScale
+    Param_Curve
     Param_CopyTo
     
     ' per LFO
@@ -84,7 +88,7 @@ CON
     Param_First_LFO                 = Param_LFO_Freq
     Param_Last_LFO                  = Param_LFO_Shape
 
-    BufferLength                    = 160   ' includes Midi encoding overhead
+    BufferLength                    = 184   ' includes Midi encoding overhead
 
 OBJ
     store       : "synth.patch.data.store"
@@ -106,7 +110,12 @@ VAR
     BYTE    PitchFixed_[6]                  ' non-0 to interpret PitchMultipliers_ as fixed pitch   
     BYTE    Transpose_                      ' transposition, in signed note steps
     BYTE    Waves_                          ' bit array of sine/triangle per operator (0=sine, bit 0=operator 1)
-    BYTE    Pad_[5+20]                      ' 135+5=140 for 20 groups of 7, one more byte per group
+    BYTE    Breakpoints_[6]                 ' key scale breakpoints
+    BYTE    LKeyScales_[6]                  ' left key scale levels
+    BYTE    RKeyScales_[6]                  ' right key scale levels
+    BYTE    Curves_[6]                      ' key scale curve (bitmap 1..0: right exp(lin),up(down), 3..2: left)
+    ' 159 bytes
+    BYTE    Pad_[2+23]                      ' 159+2=161 + bit storage for 23 groups
     ' from here down is not written to NV storage
     BYTE    LabelBuf_[6]
     BYTE    CopyTo_
@@ -273,12 +282,45 @@ o:  0-5
 }}
     return LevelScales_[o]
 
+PUB LKeyScale(o)
+{{
+Key scale for operator
+o:  0-5
+}}
+    return LKeyScales_[o]
+
+PUB RKeyScale(o)
+{{
+Kewy scale for operator
+o:  0-5
+}}
+    return RKeyScales_[o]
+
 PUB RateScale(o)
 {{
 Rate scale for operator
 o:  0-5
 }}
     return RateScales_[o]
+
+PUB Breakpoint(o)
+{{
+Breakpoint for operator
+o:  0-5
+}}
+    return Breakpoints_[o]
+
+PUB Curve(o)
+{{
+Keyscale curve for operator
+o:  0-5
+returns:
+3210
+||++ R (two bits same as:)
+|--- 1: up 0: down
+---- 1: exp 0: lin
+}}
+    return Curves_[o]
 
 PUB Omni
 {{
@@ -394,6 +436,18 @@ p: parameter
         Param_RateScale:
             return @RateScales_[o]
 
+        Param_Breakpoint:
+            return @Breakpoints_[o]
+
+        Param_LKeyScale:
+            return @LKeyScales_[o]
+
+        Param_RKeyScale:
+            return @RKeyScales_[o]
+
+        Param_Curve:
+            return @Curves_[o]
+
         Param_CopyTo:
             return @CopyTo_
 
@@ -446,6 +500,10 @@ BYTE    "R3  "
 BYTE    "L4  "
 BYTE    "R4  "
 BYTE    "RSCL"
+BYTE    "KBRK"
+BYTE    "KLSC"
+BYTE    "KRSC"
+BYTE    "KCUR"
 BYTE    "COPY"
 BYTE    "FREQ"
 BYTE    "LVL "
