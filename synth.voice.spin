@@ -68,14 +68,15 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
     if WORD[LevelScales][0]
         KeyState_ |= Key_Down
         LongMove(OscPitches_, Pitches, 6)
+        Tag_ := NewTag | $80
     else
         KeyState_ &= !Key_Down
         if KeyState_
             return  ' sustain pedal is down
+        Tag_ &= $7f
 
     repeat i from 0 to 6
         env[i].Trigger(WORD[LevelScales][i], WORD[RateScales][i])
-    Tag_ := NewTag
 
 PUB Sustain(Active)
 {{

@@ -159,8 +159,7 @@ PUB ProgramChange(Value)
 {{
 Handle program change MIDI control message
 }}
-    ' TODO: bank value to get >127
-    PatchNum_ := Value
+    PatchNum_ := (PatchNum_ & !$7f) | Value
     Load
 
 PUB Load

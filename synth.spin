@@ -239,16 +239,18 @@ PRI OnModulation(Value)
 
 PRI OnNote(Note, Velocity) | v
     repeat v from 0 to 7
-        if voice[v].Tag == Note
-            if NextVoice_ == v ' try to avoid assigning new notes here
-                NextVoice_ := (NextVoice_+1) & $7
+        ' use same voice for same note
+        if voice[v].Tag & $7f == Note
             quit
     if v > 7
         ' no current/last voice for this note, so round-robbin assign one
         if not Velocity
             return ' note up on not-playing (likely exceeded polyphonic limit)
-        v := NextVoice_
-        NextVoice_ := (NextVoice_+1) & $7
+        repeat 8
+            v := NextVoice_
+            NextVoice_ := (NextVoice_+1) & $7
+            if not (voice[v].Tag & $80) ' only take over a key down voice as a last resort
+                quit
 
     patch.Pitches(Note, @Pitches_)
     patch.LevelScales(Velocity, Note, @LevelScales_)
