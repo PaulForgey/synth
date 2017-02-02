@@ -106,7 +106,7 @@ Storing and Retrieving Patch Data
 =================================
 
 Selecting `DMP` in either the Load or Save menus will cause the patch data to be dumped as a hex formatted MIDI message out its
-debug serial port (p30) at 19200-8-1-N (standard Propeller IDE settings). In raw binary form, this is a complete MIDI SysEx
+debug serial port (p30) at 31250-8-1-N (standard Propeller IDE settings). In raw binary form, this is a complete MIDI SysEx
 message. In the Load menu, `DMP` will first load the patch. In the Save menu, the current patch in its current form will be
 dumped with no flash interation. If the SysEx message is received, it will replace the working patch data but not save it to
 flash.
