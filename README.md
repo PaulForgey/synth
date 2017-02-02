@@ -25,7 +25,6 @@ a few major differences and limitations from a DX7:
 * The oscillators do not resync
 * Voices do not have an LFO delay
 * Envelopes are linear, so they lack some of the subtlely the DX7's EG curve had
-* There is no key scaling
 
 On the upside, there are 4 LFOs and the operators may use triangle waves. Like the DX-7, the oscillators have 4096 samples per
 period from a 1024 sample lookup table, contributing to a familiar FM sound. Rate scaling is supported, but it needs work.
@@ -101,5 +100,15 @@ If modulator's transition across an envelope stage sounds horrible, try reducing
 and the linearity of the EG curve, subtlety works better.
 
 If someone actually builds this thing, uses it, and comes up with some patches that sound nice, I'd love to capture user
-submissions in this repository. Supporting a SYSEX message to allow these to be squirted in would also be then necessary;.
+submissions in this repository.
 
+Storing and Retrieving Patch Data
+=================================
+
+Selecting `DMP` in either the Load or Save menus will cause the patch data to be dumped as a hex formatted MIDI message out its
+debug serial port (p30) at 19200-8-1-N (standard Propeller IDE settings). In raw binary form, this is a complete MIDI SysEx
+message. In the Load menu, `DMP` will first load the patch. In the Save menu, the current patch in its current form will be
+dumped with no flash interation. If the SysEx message is received, it will replace the working patch data but not save it to
+flash.
+
+The 3 ID bytes of the SysEx message is presumptuously $70 $7f $7f.
