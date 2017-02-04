@@ -348,14 +348,11 @@ LevelScalesPtr  : array of 7 words to receive level scale values
             v := ( Velocity #> ($7f >> data.VelocityScale(i)) ) + 1
             ' 1 =< v =< $80
 
-            ' apply 8 bit level setting slightly non-linearly into 10 bit value
-            l := data.LevelScale(i)
-            l <<= ( ((l & $c0) >> 6) - 1 ) #> 0
-            ' 0 =< l =< $3fc
+            l := Exp((data.LevelScale(i) * 10) << 3, 9)
 
-            ' apply velocity
-            l *= v
-            ' 0 =< l =< $1_fe00
+            ' velocity scale
+            l := (l * v) >> 7
+            ' 0=< l <= ~$1_f252
 
             ' key scaling
             k := (-80 #> (Note - data.Breakpoint(i)) <# $80)
