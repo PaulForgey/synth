@@ -333,7 +333,7 @@ RateScalesPtr   : array of 7 words to receive rate scale values
     repeat i from 1 to 6
         WORD[RateScalesPtr][i] := Exp(data.RateScale(i-1) * Note * 15, 16)
 
-PUB LevelScales(Velocity, Note, LevelScalesPtr) | i, ptr, v, l, s, c
+PUB LevelScales(Velocity, Note, LevelScalesPtr) | i, ptr, v, l, s, c, k
 {{
 Velocity        : MIDI velocity value 00-$7f, 0 for key up
 Note            : MIDI note value 00-$7f, ignored for key up
@@ -354,29 +354,31 @@ LevelScalesPtr  : array of 7 words to receive level scale values
             ' 0 =< l =< $3fc
 
             ' apply velocity
-            l := (l * v) >> 3
-            ' 0 =< l =< $3fc0
+            l *= v
+            ' 0 =< l =< $1_fe00
 
             ' key scaling
-            s := (-80 #> (Note - data.Breakpoint(i)) <# $80)
+            k := (-80 #> (Note - data.Breakpoint(i)) <# $80)
             c := data.Curve(i)
 
-            if s < 0        ' left
-                ||s
-                s *= data.LKeyScale(i)
+            if k < 0        ' left
+                ||k
+                s := data.LKeyScale(i)
                 c >>= 2
             else
-                s *= data.RKeyScale(i)
+                s := data.RKeyScale(i)
 
             if c & 2        ' exponential
-                s := (s * s) >> 13
-            else
-                s <<= 1     ' linear
+                s := (Exp((k << 11) / 12, 8) * s) >> 3
+            else            ' linear
+                s := (s * k) << 3
+
+            ' 0 =< s =< $1_fe00
 
             if not (c & 1)  ' down
                 -s
 
-            WORD[ptr] := (0 #> (l + s) <# $4000) >> 4
+            WORD[ptr] := (0 #> (l + s) <# $2_0000) >> 7
     else
         repeat i from 0 to 6
             WORD[LevelScalesPtr][i] := 0
