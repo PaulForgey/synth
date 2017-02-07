@@ -50,6 +50,7 @@ CON
     MIDI_ProgramChange  = $c0
     MIDI_PitchBend      = $e0
     MIDI_SysEx          = $f0
+    MIDI_EndSysEx       = $f7
     
     ' midi controller assigments
     ' XXX supporting data entry would be nice
@@ -169,10 +170,12 @@ PRI MidiLoop
                 OnMidiProgramChange
             MIDI_PitchBend:
                 OnMidiPitchBend
-            MIDI_SysEx:
-                OnMidiSysEx
-            other:
-                MidiControl_ := 0
+            other:  ' system common
+                case MidiControl
+                    MIDI_SysEx:
+                        OnMidiSysEx
+                    other:
+                        MidiControl_ := 0
 
 PRI OnMidiNoteOff | d
     d := 0
