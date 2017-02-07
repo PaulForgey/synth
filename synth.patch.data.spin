@@ -88,7 +88,7 @@ CON
     Param_First_LFO                 = Param_LFO_Freq
     Param_Last_LFO                  = Param_LFO_Shape
 
-    BufferLength                    = 184   ' includes Midi encoding overhead
+    BufferLength                    = 176   ' includes Midi encoding overhead
 
 OBJ
     store       : "synth.patch.data.store"
@@ -107,15 +107,15 @@ VAR
     BYTE    VelocityScales_[6]              ' velocity scaling 0-7, 0 for no velocity sensitivity
     BYTE    LevelScales_[6]                 ' envelope level scaling, $ff is full, 0 is off
     BYTE    RateScales_[6]                  ' envelope rate scaling, 0 (none) to 31 (extreme)
-    BYTE    PitchFixed_[6]                  ' non-0 to interpret PitchMultipliers_ as fixed pitch   
+    BYTE    PitchFixed_                     ' bit array of multiplier/fixed per operator (0=multplier, bit 0=operator 1)
     BYTE    Transpose_                      ' transposition, in signed note steps
     BYTE    Waves_                          ' bit array of sine/triangle per operator (0=sine, bit 0=operator 1)
     BYTE    Breakpoints_[6]                 ' key scale breakpoints
     BYTE    LKeyScales_[6]                  ' left key scale levels
     BYTE    RKeyScales_[6]                  ' right key scale levels
     BYTE    Curves_[6]                      ' key scale curve (bitmap 1..0: right exp(lin),up(down), 3..2: left)
-    ' 159 bytes
-    BYTE    Pad_[2+23]                      ' 159+2=161 + bit storage for 23 groups
+    ' 154 bytes
+    BYTE    Pad_[22]                        ' 154 (already divisible by 7) + 8th bit for 22 groups
     ' from here down is not written to NV storage
     BYTE    LabelBuf_[6]
     BYTE    CopyTo_
@@ -217,7 +217,7 @@ PUB PitchFixed(op)
 Is pitch fixed for this operator?
 op: 0-5
 }}
-    return PitchFixed_[op]
+    return PitchFixed_ & (1 << op)
 
 PUB Alg
 {{
@@ -415,7 +415,7 @@ p: parameter
 
         ' per operator parameters
         Param_Pitch_Fixed:
-            return @PitchFixed_[o]
+            return @PitchFixed_
 
         Param_Pitch_Multiplier, Param_Pitch_Detune:
             return @PitchMultipliers_[o]

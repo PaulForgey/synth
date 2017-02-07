@@ -500,13 +500,13 @@ PRI SetValue(v) | ptr
         data#Param_Pitch_Multiplier:
             AdjustNote(ptr, v)
         data#Param_Pitch_Fixed:
-            AdjustByte(ptr, v, 0, $1)
+            AdjustBool(ptr, UIOperator_, v)
         data#Param_Pitch_Detune:
             AdjustWord(ptr, v, -$8000, $7fff)
         data#Param_Velocity:
             AdjustByte(ptr, v, 0, 7)
         data#Param_Wave:
-            AdjustWave(ptr, v)
+            AdjustBool(ptr, UIOperator_, v)
             Events_ |= Event_Reload
         data#Param_LFO_Freq:
             AdjustLFOFreq(ptr, v)
@@ -518,8 +518,6 @@ PRI SetValue(v) | ptr
             Events_ |= Event_Reload
         data#Param_Load, data#Param_Save:
             AdjustWord(ptr, v, 0, $3fff)
-        data#Param_Pitch_Fixed:
-            AdjustByte(ptr, v, 0, $1)
         data#Param_Omni:
             AdjustByte(ptr, v, 0, $1)
             Events_ |= Event_MidiConfig
@@ -532,11 +530,11 @@ PRI SetValue(v) | ptr
             AdjustByte(ptr, v, 0, $ff)
     ShowValue
 
-PRI AdjustWave(ptr, v)
+PRI AdjustBool(ptr, b, v)
     if v
-        BYTE[ptr] |= (1 << UIOperator_)
+        BYTE[ptr] |= (1 << b)
     else
-        BYTE[ptr] &= !(1 << UIOperator_)
+        BYTE[ptr] &= !(1 << b)
 
 PRI AdjustLFOFreq(ptr, value)
     LONG[ptr] := (0 #> value) * 973
@@ -642,8 +640,10 @@ PRI ShowValue | ptr, v, c
     case UIParam_
         data#Param_Alg:
             v := ShowAlg(ptr, @c)
-        data#Param_Pitch_Fixed, data#Param_Omni:
-            v := ShowBool(ptr)
+        data#Param_Pitch_Fixed:
+            v := ShowBool(ptr, UIOperator_)
+        data#Param_Omni:
+            v := ShowBool(ptr, 0)
         data#Param_Pitch_Multiplier:
             v := ShowPitch(ptr, @c)
             UILastNote_ := v
@@ -711,8 +711,8 @@ PRI ShowNote(n)
     ByteMove(@ValueBuf_, @BYTE[@Notes][(n//12)*2], 2)
     ByteMove(@ValueBuf_[2], si.DecPadded(n/12 -21, 3), 3)
 
-PRI ShowBool(ptr)
-    if BYTE[ptr]
+PRI ShowBool(ptr, b)
+    if BYTE[ptr] & (1 << b)
         result := 1
         ValueBuf_[5] := "Y"
     else

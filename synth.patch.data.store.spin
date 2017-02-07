@@ -202,4 +202,4 @@ Receive 8 bit byte from device
 DAT
 SectorNum   LONG    -1
 SectorData  LONG    0[1024] ' 4K long aligned
-Header      BYTE    "SFM60001"
+Header      BYTE    "SFM60002"
