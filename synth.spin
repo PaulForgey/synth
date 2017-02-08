@@ -75,7 +75,7 @@ OBJ
 
 VAR
     LONG    Pitches_[6]             ' parameter from patch -> voice (not persistent)
-    WORD    LevelScales_[7]         ' parameter from patch -> voice (not persistent)
+    LONG    LevelScales_[7]         ' parameter from patch -> voice (not persistent)
     WORD    RateScales_[7]          ' parameter from patch -> voice (not persistent)
     WORD    Freqs_[13*4]            ' 12 operators, 1 LFO per bank * 4 (oriented for osc object)
     WORD    EGs_[13*4]              ' 12 operators, 1 LFO per bank * 4 (oriented for osc object)
@@ -109,8 +109,8 @@ PRI Init | i, j, e
 
     ' start the EGs
     eg[0].InitDAC(Pin_DAC, Pin_DACCLK)
-    eg[0].Start(patch.PitchWheelPtr, patch.EgBiases, @Audio_[3])
-    eg[1].Start(patch.PitchWheelPtr, patch.EgBiases, 0)
+    eg[0].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, @Audio_[3])
+    eg[1].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, 0)
 
     ' point everything
     ' the gymnastics are easier if we think in terms of oscillator banks
@@ -255,7 +255,7 @@ PRI OnNote(Note, Velocity) | v
             if not (voice[v].Tag & $80) ' only take over a key down voice as a last resort
                 quit
 
-    patch.Pitches(Note, @Pitches_)
+    patch.Pitches(@Pitches_)
     patch.LevelScales(Velocity, Note, @LevelScales_)
     patch.RateScales(Note, @RateScales_)
     voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note)

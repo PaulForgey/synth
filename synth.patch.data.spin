@@ -231,6 +231,12 @@ Byte pointer to feedback scale
 }}
     return @Fb_
 
+PUB FixedPtr
+{{
+Byte pointer to fixed operator bit array
+}}
+    return @PitchFixed_
+
 PUB PitchWheelRange
 {{
 Pitch wheel range

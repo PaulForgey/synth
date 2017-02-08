@@ -61,11 +61,11 @@ Faster way to accomplish Trigger with all 0 levels
 PUB Trigger(Pitches, LevelScales, RateScales, NewTag) | i
 {{
 Pitches         : array of 6 longs
-LevelScales     : array of 7 level scale words. level 0 indicates key up
+LevelScales     : array of 7 level scale longs. level 0 indicates key up
 RateScales      : array of 7 rate scale words.
 NewTag          : tag byte to assign this object instance (for MIDI note being played)
 }}
-    if WORD[LevelScales][0]
+    if LONG[LevelScales][0]
         KeyState_ |= Key_Down
         LongMove(OscPitches_, Pitches, 6)
         Tag_ := NewTag | $80
@@ -76,7 +76,7 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         Tag_ &= $7f
 
     repeat i from 0 to 6
-        env[i].Trigger(WORD[LevelScales][i], WORD[RateScales][i])
+        env[i].Trigger(LONG[LevelScales][i], WORD[RateScales][i])
 
 PUB Sustain(Active)
 {{

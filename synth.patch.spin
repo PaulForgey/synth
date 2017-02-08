@@ -173,6 +173,9 @@ PUB LFOShape(n)
 PUB FbPtr
     return data.FbPtr
 
+PUB FixedPtr
+    return data.FixedPtr
+
 PUB PitchWheelPtr
     return @PitchWheel_
 
@@ -307,22 +310,16 @@ Value       : MIDI controller value, 0-$7f
 }}
     ModulationBias_ := EG_Mid | (($7f - Value) << 22)
 
-PUB Pitches(Note, PitchesPtr) | i, p
+PUB Pitches(PitchesPtr) | i, m
 {{
 Note        : MIDI note value 00-$7f
 PitchesPtr  : array of 6 longs to receive pitch unit values
 }}
-    ' push it up 21 octaves into the standard midi range, but then allow tranposition down
-    Note += (252 + data.Transpose)
-    p := WORD[tables.ScalePtr][Note // 12]
-    p |= (Note / 12) << 10
-    
     repeat i from 0 to 5
+        m := -(data.PitchMultiplier(i) << 15)
         if data.PitchFixed(i)
-            LONG[PitchesPtr][i] := !(data.PitchMultiplier(i) << 15)
-        else
-            p += data.PitchMultiplier(i)
-            LONG[PitchesPtr][i] := !( (0 #> p <# $7fff) << 15 )
+            m--
+        LONG[PitchesPtr][i] := m
 
 PUB RateScales(Note, RateScalesPtr) | i,  j
 {{
@@ -337,13 +334,19 @@ PUB LevelScales(Velocity, Note, LevelScalesPtr) | i, ptr, v, l, s, c, k
 {{
 Velocity        : MIDI velocity value 00-$7f, 0 for key up
 Note            : MIDI note value 00-$7f, ignored for key up
-LevelScalesPtr  : array of 7 words to receive level scale values
+LevelScalesPtr  : array of 7 longs to receive level scale values
 }}
     if Velocity
         ptr := LevelScalesPtr
-        WORD[ptr] := $400 ' never level scale the pitch EG!
+
+        k := Note + (252 + data.Transpose)
+        s := WORD[tables.ScalePtr][k // 12]
+        s |= (k / 12) << 10
+
+        LONG[ptr] := -(s << 15)
+
         repeat i from 0 to 5
-            ptr += 2
+            ptr += 4
             ' velocity sensitivity is actually floor value, and possibly a cheesy way to handle this
             v := ( Velocity #> ($7f >> data.VelocityScale(i)) ) + 1
             ' 1 =< v =< $80
@@ -375,10 +378,10 @@ LevelScalesPtr  : array of 7 words to receive level scale values
             if not (c & 1)  ' down
                 -s
 
-            WORD[ptr] := (0 #> (l + s) <# $2_0000) >> 7
+            LONG[ptr] := (0 #> (l + s) <# $2_0000) >> 7
     else
         repeat i from 0 to 6
-            WORD[LevelScalesPtr][i] := 0
+            LONG[LevelScalesPtr][i] := 0
 
 '
 ' UI

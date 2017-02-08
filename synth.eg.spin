@@ -39,6 +39,7 @@ CON
     Param_Biases
     Param_OscPitches
     Param_EG
+    Param_Fixed
     Param_Audio
     Param_Max
 
@@ -64,10 +65,11 @@ VAR
     LONG EG_[EG_Max * 28]
     LONG OscPitches_[24]
 
-PUB Start(BendPtr, Biases, AudioPtr) | e
+PUB Start(BendPtr, Biases, FixedPtr, AudioPtr) | e
 {{
 BendPtr     : long pointer to global pitch bend value, signed +/- $2000_0000 (+/- 16 octaves)
 Biases      : word array of 7 envelope bias pointer and scale entries (14 words total)
+FixedPtr    : byte pointer to bit array of fixed frequency operators
 AudioPtr    : optional audio output
 }}
     Stop
@@ -77,7 +79,8 @@ AudioPtr    : optional audio output
     Params_[3] := Biases
     Params_[4] := @OscPitches_
     Params_[5] := @EG_
-    Params_[6] := AudioPtr
+    Params_[6] := FixedPtr
+    Params_[7] := AudioPtr
 
     LongFill(@OscPitches_, !0, 24)
 
@@ -158,6 +161,8 @@ entry
     add r0, #4
     rdword g_egs, r0                ' table of EGs    
     add r0, #4
+    rdword g_fixed, r0              ' fixed frequency operators
+    add r0, #4
     rdword g_audio, r0 wz           ' optional audio output
     if_z jmp #loop
 
@@ -178,6 +183,7 @@ loop
 egloop
     testn g_audio, #0 wz            ' do we lead or follow the DAC output?
     if_z waitpeq lrmask, lrmask
+    rdbyte fixed, g_fixed           ' update fixed frequency operators
     if_z jmp #:eg
 
     rdlong audio, g_audio
@@ -191,7 +197,6 @@ egloop
 
 :eg
     ' 1 pitch EG
-    ' [nop]
     mov bptr, g_biases              ' point at first bias entry
     rdlong level, ptr               ' read level
     add ptr, #4                     ' point at goal
@@ -219,45 +224,52 @@ egloop
     add ptr, #5*4                   ' point at next eg
     add bptr, #2                    ' point at next bias entry
     mov c1, #6                      ' iterate 6 operators
+    ' [nop]
+    ' [nop]
+    ' [nop]
 
 oploop
     ' 6 operator EGs, pitch offset by output of pitch EG we just ran
     rdlong pitch, pptr              ' read pitch units (1024 per octave, actual value << 14, higher value is lower freq)
     add pptr, #4                    ' next pitch entry
-    add pitch, bend                 ' offset pitch+=(pitch bend + pitch EG)
+    shr fixed, #1 wc                ' fixed -> C
     rdlong level, ptr               ' read current level
     add ptr, #4                     ' move to goal
-    shr pitch, #13                  ' shift from EG friendly value to long offset
+    if_nc add pitch, bend           ' offset pitch+=(pitch bend + pitch EG), unless fixed
     rdlong delta, ptr               ' read goal (soon to be delta)
     add ptr, #4                     ' move to rate
-    mov r0, pitch                   ' save a copy of pitch
+    shr pitch, #13                  ' shift from EG friendly value to long offset
     rdlong rate, ptr                ' read rate
     sub ptr, #4*2                   ' move back to level
-    and r0, pitchmask               ' mask pitch table offset
+    mov r0, pitch                   ' save a copy of pitch
     rdword bias, bptr               ' read bias pointer
     add bptr, #2                    ' move to scale
-    sub delta, level                ' delta = goal-level
+    and r0, pitchmask               ' mask pitch table offset
     rdbyte scale, bptr              ' read scale
+    sub delta, level                ' delta = goal-level
     abs delta, delta wc             ' |delta| saving original sign
-    add r0, g_pitch                 ' offset += pitch table
     rdlong bias, bias               ' read -bias (larger moves envelope down)
+    add r0, g_pitch                 ' offset += pitch table
     shr bias, scale                 ' scale bias
-    max delta, rate                 ' limit delta to the rate   
     rdlong r0, r0                   ' read high octave frequency
+    max delta, rate                 ' limit delta to the rate
     negc delta, delta               ' restore sign
     add level, delta                ' move level
-    wrlong level, ptr               ' write back current level
     add bptr, #2                    ' point at next bias entry
     shr pitch, #12                  ' isolate octave (from longs)
     max bias, level                 ' do not bias level < 0
+    wrlong level, ptr               ' write back current level
     sub level, bias                 ' bias the level before log lookup
     add ptr, #4*3                   ' now point at frequency
     shr r0, pitch                   ' shift to proper octave
-    wrlong r0, ptr                  ' write back frequency
     shr level, #19                  ' whole part of level (in words)
     add level, g_eg                 ' offset += eg log table
-    rdword level, level             ' r0 = log(r0)
+    ' [nop]
+    wrlong r0, ptr                  ' write back frequency
     add ptr, #4                     ' point at loglevel
+    ' [nop]
+    rdword level, level             ' r0 = log(r0)
+    ' [nop]
     ' [nop]
     wrlong level, ptr               ' write loglevel
     add ptr, #4                     ' point to next eg
@@ -285,6 +297,7 @@ g_bend          res     1
 g_pitches       res     1
 g_biases        res     1
 g_egs           res     1
+g_fixed         res     1
 g_audio         res     1
 ptr             res     1
 bptr            res     1
@@ -300,4 +313,5 @@ bias            res     1
 scale           res     1
 bend            res     1
 bendw           res     1
+fixed           res     1
 audio           res     1
