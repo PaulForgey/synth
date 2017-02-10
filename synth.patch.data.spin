@@ -39,6 +39,7 @@ CON
     Param_Pitch_L4
     Param_Pitch_R4
     Param_Transpose
+    Param_Mono
     ' per operator
     Param_Level
     Param_Wave
@@ -77,7 +78,7 @@ CON
     Param_Max
 
     Param_First_Global              = Param_Alg
-    Param_Last_Global               = Param_Transpose
+    Param_Last_Global               = Param_Mono
 
     Param_First_Operator            = Param_Level
     Param_Last_Operator             = Param_EG_Bias_Scale
@@ -218,6 +219,21 @@ Is pitch fixed for this operator?
 op: 0-5
 }}
     return PitchFixed_ & (1 << op)
+
+PUB Mono
+{{
+Mono mode?
+}}
+    return PitchFixed_ & $40
+
+PUB SetMono(m)
+{{
+Externally set mono
+}}
+    if m
+        PitchFixed_ |= $40
+    else
+        PitchFixed_ &= CONSTANT(!$40)
 
 PUB Alg
 {{
@@ -409,7 +425,6 @@ p: parameter
         Param_Pitch_L1..Param_Pitch_R4:
             return @Envelopes_[p - Param_Pitch_L1]
 
-
         Param_PitchEG_Bias_Source:
             return @EGBiases_[0]
 
@@ -420,7 +435,7 @@ p: parameter
             return @Transpose_
 
         ' per operator parameters
-        Param_Pitch_Fixed:
+        Param_Pitch_Fixed, Param_Mono:
             return @PitchFixed_
 
         Param_Pitch_Multiplier, Param_Pitch_Detune:
@@ -488,6 +503,7 @@ BYTE    "P R3"
 BYTE    "P L4"
 BYTE    "P R4"
 BYTE    "MIDC"
+BYTE    "MONO"
 BYTE    "LVL "
 BYTE    "WAVE"
 BYTE    "FREQ"

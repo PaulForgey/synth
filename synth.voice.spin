@@ -56,7 +56,7 @@ PUB UnTrigger | i
 Faster way to accomplish Trigger with all 0 levels
 }}
     repeat i from 0 to 6
-        env[i].Trigger(0, 0)
+        env[i].Trigger(0, FALSE, 0)
 
 PUB Trigger(Pitches, LevelScales, RateScales, NewTag) | i
 {{
@@ -76,7 +76,17 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         Tag_ &= $7f
 
     repeat i from 0 to 6
-        env[i].Trigger(LONG[LevelScales][i], WORD[RateScales][i])
+        env[i].Trigger(LONG[LevelScales][i], FALSE, WORD[RateScales][i])
+
+PUB NewNote(PitchLevel, NewTag)
+{{
+Transition to new note in existing envelope state
+PitchLevel      : new LevelScales[0] value
+Slide           : do not reset pitch EG value, allowing R1 to act as a portamento
+NewTag          : new tag byte to assign this object instance
+}}
+    Tag_ := NewTag | $80
+    env[0].Trigger(PitchLevel, TRUE, 0)
 
 PUB Sustain(Active)
 {{
@@ -94,6 +104,9 @@ PUB Tag
 Accessor for "tag" value, which is just the MIDI node currently playing
 }}
     return Tag_
+
+PUB Untag
+    Tag_ := 0
 
 PUB Run | i
 {{

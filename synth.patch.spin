@@ -191,6 +191,12 @@ PUB Channel
 PUB Waves
     return data.Waves
 
+PUB Mono
+    return data.Mono
+
+PUB SetMono(m)
+    data.SetMono(m)
+
 PUB Reload
 {{
 Read self clearing event state needing oscillator reload
@@ -310,14 +316,12 @@ Value       : MIDI controller value, 0-$7f
 }}
     ModulationBias_ := EG_Mid | (($7f - Value) << 22)
 
-PUB Pitches(PitchesPtr) | i, m
+PUB Pitches(PitchesPtr) | i
 {{
-Note        : MIDI note value 00-$7f
-PitchesPtr  : array of 6 longs to receive pitch unit values
+PitchesPtr      : array of 6 longs to receive pitch multiplier values
 }}
     repeat i from 0 to 5
-        m := !(data.PitchMultiplier(i) << 15)
-        LONG[PitchesPtr][i] := m
+        LONG[PitchesPtr][i] := !(data.PitchMultiplier(i) << 15)
 
 PUB RateScales(Note, RateScalesPtr) | i,  j
 {{
@@ -328,6 +332,13 @@ RateScalesPtr   : array of 7 words to receive rate scale values
     repeat i from 1 to 6
         WORD[RateScalesPtr][i] := Exp(data.RateScale(i-1) * Note * 15, 16)
 
+PUB NotePitch(Note) | k
+{{
+Note            : MIDI note value 00-$7f
+}}
+        k := Note + (252 + data.Transpose)
+        result := !( (WORD[tables.ScalePtr][k // 12] | ((k / 12) << 10)) << 15 )
+
 PUB LevelScales(Velocity, Note, LevelScalesPtr) | i, ptr, v, l, s, c, k
 {{
 Velocity        : MIDI velocity value 00-$7f, 0 for key up
@@ -336,12 +347,7 @@ LevelScalesPtr  : array of 7 longs to receive level scale values
 }}
     if Velocity
         ptr := LevelScalesPtr
-
-        k := Note + (252 + data.Transpose)
-        s := WORD[tables.ScalePtr][k // 12]
-        s |= (k / 12) << 10
-
-        LONG[ptr] := !(s << 15)
+        LONG[ptr] := NotePitch(Note)
 
         repeat i from 0 to 5
             ptr += 4
@@ -502,6 +508,8 @@ PRI SetValue(v) | ptr
             AdjustNote(ptr, v)
         data#Param_Pitch_Fixed:
             AdjustBool(ptr, UIOperator_, v)
+        data#Param_Mono:
+            AdjustBool(ptr, 6, v)
         data#Param_Pitch_Detune:
             AdjustWord(ptr, v, -$8000, $7fff)
         data#Param_Velocity:
@@ -643,6 +651,8 @@ PRI ShowValue | ptr, v, c
             v := ShowAlg(ptr, @c)
         data#Param_Pitch_Fixed:
             v := ShowBool(ptr, UIOperator_)
+        data#Param_Mono:
+            v := ShowBool(ptr, 6)
         data#Param_Omni:
             v := ShowBool(ptr, 0)
         data#Param_Pitch_Multiplier:

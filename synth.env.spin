@@ -42,14 +42,21 @@ EnvPtr      : pointer to envelope sequence of 8 longs (L1/R1..L4/R4)
     EnvPtr_ := EnvPtr
     SetState(3)
 
-PUB Trigger(LevelScale, RateScale)
+PUB Trigger(LevelScale, Slide, RateScale)
 {{
 LevelScale      : level scaling value 1-$400 if key down, 0 if key up
+Slide           : for a pitch envelope, TRUE to not reset EG level (ignored otherwise)
 RateScale       : rate scaling value
 }}
     if LevelScale
         RateScale_ := RateScale
         LevelScale_ := LevelScale
+        SetEgRate(0)
+        if LevelScale < 0
+            if not Slide
+                SetEgLevel($2000_0000 + LevelScale)
+        else
+            SetEgLevel(0)
         SetState(0)
     else
         SetState(3)
@@ -78,10 +85,6 @@ PRI SetState(s)
 Transition to new state
 s       : state (0-3)
 }}
-    ' if we are going to state 0 not from 3, reset things first
-    if s == 0 and State_ <> 3 and LevelScale_ > 0
-        SetEgRate(0)
-        SetEgLevel(0)
     State_ := s
     SetEgRate(0)
     SetEgGoal(EnvLevel)
