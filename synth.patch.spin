@@ -316,9 +316,7 @@ Note        : MIDI note value 00-$7f
 PitchesPtr  : array of 6 longs to receive pitch unit values
 }}
     repeat i from 0 to 5
-        m := -(data.PitchMultiplier(i) << 15)
-        if data.PitchFixed(i)
-            m--
+        m := !(data.PitchMultiplier(i) << 15)
         LONG[PitchesPtr][i] := m
 
 PUB RateScales(Note, RateScalesPtr) | i,  j
@@ -343,7 +341,7 @@ LevelScalesPtr  : array of 7 longs to receive level scale values
         s := WORD[tables.ScalePtr][k // 12]
         s |= (k / 12) << 10
 
-        LONG[ptr] := -(s << 15)
+        LONG[ptr] := !(s << 15)
 
         repeat i from 0 to 5
             ptr += 4

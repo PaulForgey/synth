@@ -238,7 +238,7 @@ oploop
     if_nc add pitch, bend           ' offset pitch+=(pitch bend + pitch EG), unless fixed
     rdlong delta, ptr               ' read goal (soon to be delta)
     add ptr, #4                     ' move to rate
-    shr pitch, #13                  ' shift from EG friendly value to long offset
+    shr pitch, #14                  ' shift from EG friendly value to word offset
     rdlong rate, ptr                ' read rate
     sub ptr, #4*2                   ' move back to level
     mov r0, pitch                   ' save a copy of pitch
@@ -251,24 +251,24 @@ oploop
     rdlong bias, bias               ' read -bias (larger moves envelope down)
     add r0, g_pitch                 ' offset += pitch table
     shr bias, scale                 ' scale bias
-    rdlong r0, r0                   ' read high octave frequency
+    rdword r0, r0                   ' read high octave frequency
     max delta, rate                 ' limit delta to the rate
     negc delta, delta               ' restore sign
     add level, delta                ' move level
     add bptr, #2                    ' point at next bias entry
-    shr pitch, #12                  ' isolate octave (from longs)
+    shr pitch, #11                  ' isolate octave (from words)
     max bias, level                 ' do not bias level < 0
     wrlong level, ptr               ' write back current level
     sub level, bias                 ' bias the level before log lookup
     add ptr, #4*3                   ' now point at frequency
-    shr r0, pitch                   ' shift to proper octave
+    shl r0, #15                     ' move 16 bit frequency value into place
     shr level, #19                  ' whole part of level (in words)
     add level, g_eg                 ' offset += eg log table
-    ' [nop]
+    shr r0, pitch                   ' shift to proper octave
     wrlong r0, ptr                  ' write back frequency
     add ptr, #4                     ' point at loglevel
     ' [nop]
-    rdword level, level             ' r0 = log(r0)
+    rdword level, level             ' level = log(level)
     ' [nop]
     ' [nop]
     wrlong level, ptr               ' write loglevel
@@ -279,7 +279,7 @@ oploop
     jmp #loop                       ' next cycle
 
 logmask         long    $3ff << 1
-pitchmask       long    $3ff << 2
+pitchmask       long    $3ff << 1
 pitch0          long    $2000_0000      ' unsigned bias offset from envelope midpoint to 0
 bclk            long    $1210_385d      ' 5_644_800 * 16 / 32 = 2_822_400 (fs*64)
 dacmask         long    $00_70_00_00

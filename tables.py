@@ -67,14 +67,14 @@ class PitchTable(Table):
     period = 4096
 
     def __init__(self):
-        super(PitchTable, self).__init__("Pitch", "LONG")
+        super(PitchTable, self).__init__("Pitch", "WORD")
         fs = 44.1e3
         base = self.period / fs * self.hi_c 
 
         for x in range(0,0x400):
             x = 0x3ff - x
             n = base * pow(2.0, float(x) / 1024.0)
-            self.data.append(int(round(n * (1 << 20))))
+            self.data.append(int(round(n * (1 << 5))))
 
 
 class ScaleTable(Table):
