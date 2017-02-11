@@ -52,11 +52,8 @@ RateScale       : rate scaling value
         RateScale_ := RateScale
         LevelScale_ := LevelScale
         SetEgRate(0)
-        if LevelScale < 0
-            if not Slide
-                SetEgLevel($2000_0000 + LevelScale)
-        else
-            SetEgLevel(0)
+        if LevelScale < 0 and not Slide
+            SetEgLevel($2000_0000 + LevelScale)
         SetState(0)
     else
         SetState(3)
