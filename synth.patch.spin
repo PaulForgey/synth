@@ -610,7 +610,7 @@ PRI ShowSelection
     display.Write(0, 0, @ValueBuf_)
 
     ' populate param label value value
-    display.Write(2, 0, data.ParamLabel(UIParam_))
+    display.Write(1, 0, data.ParamLabel(UIParam_))
     ShowValue
     
     ' populate the button labels
@@ -637,7 +637,11 @@ PRI SetButtons(cmd1, cmd2, cmd3)
 
 PRI SetButton(b, cmd)
     Menu_[b-1] := cmd
-    ValueBuf_[3] := 0
+    if b < 3
+        ValueBuf_[3] := 17  ' vertical bar
+        ValueBuf_[4] := 0
+    else
+        ValueBuf_[3] := 0
     ByteMove(@ValueBuf_, @BYTE[@CmdLabels][cmd*3], 3)
     display.Write(3, (b-1)*8, @ValueBuf_)
 
@@ -682,7 +686,7 @@ PRI ShowValue | ptr, v, c
             v := ShowMidiNote(ptr, @c)
         other:
             v := ShowByte(ptr)
-    display.Write(2, 10, @ValueBuf_)
+    display.Write(1, 10, @ValueBuf_)
     io.SetValue(v, c)
 
 PRI ShowCurve(ptr, cptr)
