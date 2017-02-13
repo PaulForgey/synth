@@ -151,7 +151,7 @@ PRI MidiData(Ptr, Size)
         MidiControl_ := 0
 
 ' top level MIDI parsing
-PRI MidiLoop
+PRI MidiLoop | c
     if patch.MidiConfig
         io.RemoveAllChannels
         if patch.Omni
@@ -160,17 +160,18 @@ PRI MidiLoop
             io.AddChannel(patch.Channel)
 
     repeat while MidiControl
+        c := MidiControl & $0f
         case MidiControl & $f0
             MIDI_NoteOff:
-                OnMidiNoteOff
+                OnMidiNoteOff(c)
             MIDI_NoteOn:
-                OnMidiNoteOn
+                OnMidiNoteOn(c)
             MIDI_ControlChange:
-                OnMidiControlChange
+                OnMidiControlChange(c)
             MIDI_ProgramChange:
-                OnMidiProgramChange
+                OnMidiProgramChange(c)
             MIDI_PitchBend:
-                OnMidiPitchBend
+                OnMidiPitchBend(c)
             other:  ' system common
                 case MidiControl
                     MIDI_SysEx:
@@ -178,24 +179,25 @@ PRI MidiLoop
                     other:
                         MidiControl_ := 0
 
-PRI OnMidiNoteOff | d
+' midi channel number is ignored for most of these, as a lot of things are global to the engine
+PRI OnMidiNoteOff(c) | d
     d := 0
     if MidiData(@d, 2)
-        OnNote(d & $7f, 0)    
+        OnNote(c, d & $7f, 0)
 
-PRI OnMidiNoteOn | d
+PRI OnMidiNoteOn(c) | d
     d := 0
     if MidiData(@d, 2)
-        OnNote(d & $7f, d >> 8)
+        OnNote(c, d & $7f, d >> 8)
 
-PRI OnMidiControlChange | d, c
+PRI OnMidiControlChange(c) | d, control
     d := 0
     if MidiData(@d, 2)
-        c := d & $7f
+        control := d & $7f
         d >>= 8
-        case c
+        case control
             MIDI_C_Sustain:
-                OnSustain(d > 63)
+                OnSustain(c, d > 63)
             MIDI_C_Modulation:
                 OnModulation(d)
             MIDI_C_Panic:
@@ -211,12 +213,12 @@ PRI OnMidiControlChange | d, c
             MIDI_C_Poly:
                 OnPoly
 
-PRI OnMidiProgramChange | d
+PRI OnMidiProgramChange(c) | d
     d := 0
     if MidiData(@d, 1)
         OnProgramChange(d)
 
-PRI OnMidiPitchBend | d
+PRI OnMidiPitchBend(c) | d
     d := 0
     if MidiData(@d, 2)
         OnPitchBend((d & $7f) | ((d >> 1) & $3f80))
@@ -229,13 +231,12 @@ PRI OnMidiSysEx | d
         patch.LoadFromMidi(result)
 
 ' parsed MIDI event handling
-PRI OnSustain(Active) | v
+PRI OnSustain(Channel, Active) | v
     repeat v from 0 to 7
-        voice[v].Sustain(Active)
+        voice[v].Sustain(Channel, Active)
 
 PRI AllOff | v
     repeat v from 0 to 7
-        voice[v].Sustain(FALSE)
         voice[v].UnTrigger
 
 PRI OnModulation(Value)
@@ -249,7 +250,7 @@ PRI HiNote | i
             quit
     result--
 
-PRI OnNote(Note, Velocity) | v, n, i
+PRI OnNote(Channel, Note, Velocity) | v, n, i
     n := -1
     if patch.Mono
         if Velocity
@@ -287,13 +288,13 @@ PRI OnNote(Note, Velocity) | v, n, i
         patch.LevelScales(Velocity, Note, @LevelScales_)
         patch.Pitches(@Pitches_)
         patch.RateScales(Note, @RateScales_)
-        voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note)
+        voice[v].Trigger(Channel, @Pitches_, @LevelScales_, @RateScales_, Note)
 
 PRI OnPitchBend(Value)
     patch.SetPitchWheel(Value)
 
 PRI OnProgramChange(Value)
-    patch.ProgramChange(Value)
+    'patch.ProgramChange(Value)
 
 PRI OnOmni(Value)
     patch.SetOmni(Value)
@@ -310,7 +311,7 @@ PRI OnPoly
 PRI OscLoop | i
     if patch.Silence
         Panic
-        io.DebugStr(STRING("Panic", 13))
+        io.DebugStr(STRING("MIDI Panic", 13))
     if patch.Reload
         RestartOsc        
         io.DebugStr(STRING("RestartOsc", 13))

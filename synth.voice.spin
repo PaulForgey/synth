@@ -26,13 +26,10 @@ OBJ
     env[7]      : "synth.env"
 
 VAR
-    WORD OscPitches_
-    BYTE KeyState_
-    BYTE Tag_
-
-CON
-    Key_Sustain     = %01
-    Key_Down        = %10
+    WORD    OscPitches_
+    BYTE    KeyDown_
+    BYTE    Sustain_
+    BYTE    Tag_
 
 PUB Init(EgPtr, OscPitches, Envs) | i
 {{
@@ -47,9 +44,12 @@ Envs        : array of 7*4*2=56 longs defining the 7 envelope sequences
 PUB Panic | i
 {{
 Panic the envelope sequences (which in turn panic their EGs)
+Also reset KeyDown and Sustain states for all channels
 }}
     repeat i from 0 to 6
         env[i].Panic
+    KeyDown_ := 0
+    Sustain_ := 0
 
 PUB UnTrigger | i
 {{
@@ -58,21 +58,22 @@ Faster way to accomplish Trigger with all 0 levels
     repeat i from 0 to 6
         env[i].Trigger(0, FALSE, 0)
 
-PUB Trigger(Pitches, LevelScales, RateScales, NewTag) | i
+PUB Trigger(Channel, Pitches, LevelScales, RateScales, NewTag) | i
 {{
+Channel         : MIDI channel number (only used to track sustain)
 Pitches         : array of 6 longs
 LevelScales     : array of 7 level scale longs. level 0 indicates key up
 RateScales      : array of 7 rate scale words.
 NewTag          : tag byte to assign this object instance (for MIDI note being played)
 }}
     if LONG[LevelScales][0]
-        KeyState_ |= Key_Down
+        SetState(Channel, TRUE, @KeyDown_)
         LongMove(OscPitches_, Pitches, 6)
         Tag_ := NewTag | $80
     else
-        KeyState_ &= !Key_Down
-        if KeyState_
-            return  ' sustain pedal is down
+        SetState(Channel, FALSE, @KeyDown_)
+        if State(Channel, @Sustain_) or KeyDown_
+            return  ' sustain pedal is down or other channels still have us on
         Tag_ &= $7f
 
     repeat i from 0 to 6
@@ -88,15 +89,12 @@ NewTag          : new tag byte to assign this object instance
     Tag_ := NewTag | $80
     env[0].Trigger(PitchLevel, TRUE, 0)
 
-PUB Sustain(Active)
+PUB Sustain(Channel, Active)
 {{
 Update state of sustain pedal
 }}
-    if Active
-        KeyState_ |= Key_Sustain
-    else
-        KeyState_ &= !Key_Sustain
-    if not KeyState_
+    SetState(Channel, Active, @Sustain_)
+    if not (Active or KeyDown_)
         UnTrigger
 
 PUB Tag
@@ -114,6 +112,23 @@ Run an iteration of the loop
 }}
     repeat i from 0 to 6
         env[i].Run
+
+PRI SetState(Channel, NewState, ptr)
+    if NewState
+        if Channel < 0
+            BYTE[ptr] := $f
+        else
+            BYTE[ptr] |= (1 << Channel)
+    else
+        if Channel < 0
+            BYTE[ptr] := 0
+        else
+            BYTE[ptr] &= !(1 << Channel)
+
+PRI State(Channel, ptr)
+    result := BYTE[ptr]
+    if Channel => 0
+        result &= (1 << Channel)
 
 {
 This object serves as a controller for an individual voice as requested by the main synth object, and using that object to
