@@ -178,7 +178,7 @@ loop
     mov r0, phases+0                ' working phase state
     rdlong r1, g_mods+0             ' modulation value
 osc0_fb                             ' next instruction is patched to shl r1, fb for feedback operators
-    shl r1, #18                     ' scale: +/- 1 as two full rotations either direction
+    shl r1, #18                     ' scale: +/- 1 as one full rotation either direction
     add r0, r1                      ' add modulation to working state
     rdword r2, g_envs+0             ' read envelope in 4.10 << 1
     if_z mov phases+0, #0           ' resync oscillator if freq == 0

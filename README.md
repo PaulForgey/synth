@@ -76,14 +76,12 @@ pull-down resisters on these lines.
 Programming Hints
 =================
 
-The maximum output setting of `FF` will clip the master summation after 8 of them. With a single carrier algorithm, this isn't a
-problem with all 8 voices active, but quickly will be with more carriers. As a modulator, this output level will massively
-overmodulate an operator to +/- 2 complete rotations, which will produce a lot of unexpected spectrum as the EGs rise and fall.
-A more sane maximum setting to use is somewhere between `B0` and `C0`. The output of any individual voice is not automatically
-scaled by the number of carriers, so this is up to the user to account for.
+There is no automatic scaling based on the number of carriers per voice. To do the math, the maximum output per operator is a 16
+bit value, there are 8 voices, and the DAC runs with effectively 18 bits words. Somewhere between `E0` and `F0` make sane maximum
+output values depending on how many carriers there are.
 
 Feedback is a simple shift setting, so many of the lower settings may not have any audible effect, and the maximum setting is
-pure noise with a very uneven spectrum. Setting `11` (out of a possible `1F`) is about equivilent to a more familiar maximum
+pure noise with a very uneven spectrum. Setting `10` (out of a possible `1F`) is about equivilent to a more familiar maximum
 effect.
 
 The ability to use triangle waves is a little gimmicky, but very handy for recreating retro style sounds. As there is no low

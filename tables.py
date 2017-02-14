@@ -17,11 +17,9 @@ class LogSinTable(Table):
     def __init__(self):
         super(LogSinTable, self).__init__("Sine", "WORD")
 
-        self.data.append(16 << 10)
-        for x in range(1,0x400):
-            n = (float(x) / 1024.0)
-            s = math.sin(n * math.pi / 2.0)
-            l = math.log(s, 2.0)
+        for x in range(0,0x400):
+            n = math.sin(((0.5 + x) / 1024.0) * math.pi / 2.0)
+            l = math.log(n, 2.0)
 
             self.data.append(-int(round(l * 1024.0)))
         self.data.append(0)
@@ -39,8 +37,9 @@ class ExpTable(Table):
 
         for x in range(0,0x400):
             x = 0x3ff - x
-            n = (float(x) / 1024.0)
-            self.data.append(int(round((2 ** n) * 32768.0)))
+            n = (float(x) / 1024.0) - 1
+            e = (2 ** n)
+            self.data.append(int(round(e * 32768.0)))
 
 
 class EGLogTable(Table):
@@ -49,10 +48,10 @@ class EGLogTable(Table):
     def __init__(self):
         super(EGLogTable, self).__init__("EGLog", "WORD")
 
-        self.data.append((16 << 10)-1)
+        self.data.append(15 << 10)
         for x in range(1,0x400):
-            n = int(round(math.log(float(x*64), 2.0) * 1024.0))
-            n = 0x4000 - n
+            n = int(round(math.log(float(x*32), 2.0) * 1024.0))
+            n = 0x3c00 - n
             self.data.append(n)
         self.data.append(0)
 
@@ -166,5 +165,5 @@ def tables():
 
 
 tables()
-#test(2)
+#test(0x3bff)
 #test_env()

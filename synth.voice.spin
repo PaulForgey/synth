@@ -83,7 +83,6 @@ PUB NewNote(PitchLevel, NewTag)
 {{
 Transition to new note in existing envelope state
 PitchLevel      : new LevelScales[0] value
-Slide           : do not reset pitch EG value, allowing R1 to act as a portamento
 NewTag          : new tag byte to assign this object instance
 }}
     Tag_ := NewTag | $80

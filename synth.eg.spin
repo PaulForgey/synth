@@ -187,6 +187,7 @@ egloop
     if_z jmp #:eg
 
     rdlong audio, g_audio
+    shl audio, #2
     maxs audio, hi
     mins audio, lo    
     rev audio, #12
