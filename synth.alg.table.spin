@@ -25,7 +25,15 @@ SOFTWARE.
 PUB AlgTablePtr
     return @AlgTable
 
+PUB AlgScalePtr
+    return @AlgScale
+
 DAT
+AlgScale
+' based on 16 bit operator outputs, 8 voices and 24 bit DAC
+' # outputs: 2 2 2 2 3 3 2 2 2 2 2 2 2 2 2 1 1 1 3 3 4 4 4 5 5 3 3 3 4 4 5 6
+BYTE         4,4,4,4,3,3,4,4,4,4,4,4,4,4,4,5,5,5,3,3,3,3,3,2,2,3,3,3,3,3,2,2
+
 AlgTable
 ' Each entry is a series of 6 operators layed out as:
 ' 76543210

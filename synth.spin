@@ -70,8 +70,7 @@ OBJ
     eg[2]       : "synth.eg"
     voice[8]    : "synth.voice"
     patch       : "synth.patch"
-
-    tables      : "synth.tables"
+    alg         : "synth.alg.table"
 
 VAR
     LONG    KeysDown_[4]            ' bit array of keys that are presently down
@@ -84,6 +83,7 @@ VAR
     BYTE    MidiControl_            ' current MIDI control message, or 0 if waiting
     BYTE    NextVoice_              ' round robin voice assigment
     BYTE    RunVoice_               ' round robin voice idle tasking
+    BYTE    AudioScale_             ' audio scale factor
 
 PUB Boot | err
     io.Start(Pin_Buttons, Pin_MIDI, Pin_Debug)
@@ -105,13 +105,14 @@ PRI Main | n
         patch.Run ' UI loop
 
 PRI Init | i, j, e
-    ' start the fron panel
+    ' start the front panel
     patch.Init(Pin_Display, Pin_Store)
+    ' init the DAC
+    eg[0].InitDAC(Pin_DAC, Pin_DACCLK)
 
     ' start the EGs
-    eg[0].InitDAC(Pin_DAC, Pin_DACCLK)
-    eg[0].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, @Audio_[3])
-    eg[1].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, 0)
+    eg[0].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, @Audio_[3], @AudioScale_)
+    eg[1].Start(patch.PitchWheelPtr, patch.EgBiases, patch.FixedPtr, 0, 0)
 
     ' point everything
     ' the gymnastics are easier if we think in terms of oscillator banks
@@ -139,6 +140,7 @@ PRI RestartOsc | i, ptr
     repeat i from 0 to 3
         osc[i].Start(@Freqs_[i*13], @EGs_[i*13], patch.FbPtr, patch.LFOBiasPtr(i), ptr, @Audio_[i], patch.LFOOutputPtr(i), patch.LFOShape(i), patch.Waves, patch.Alg)
         ptr := @Audio_[i]
+    AudioScale_ := BYTE[alg.AlgScalePtr][patch.Alg]
 
 PRI MidiControl
     if not MidiControl_

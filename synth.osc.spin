@@ -558,8 +558,8 @@ lfo_wave
     shr r1, #11                     ' isolate whole part of log
     ' [nop]
     rdword r0, r0                   ' r0=exp(r0) << scale
-    shl r0, #13                     ' envelope scale unscaled result
-    shr r0, r1                      ' now scale from that (any consumers will round of the $3fff left)
+    shl r0, #14                     ' envelope scale unscaled result
+    shr r0, r1                      ' now scale from that (any consumers will round off the $3fff left)
     rdbyte fb, g_fb                 ' update global feedback
     negc r0, r0                     ' negate if needed
     add r0, lfo_bias                ' apply bias (envelope scale)

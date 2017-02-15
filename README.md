@@ -76,10 +76,6 @@ pull-down resisters on these lines.
 Programming Hints
 =================
 
-There is no automatic scaling based on the number of carriers per voice. To do the math, the maximum output per operator is a 16
-bit value, there are 8 voices, and the DAC runs with effectively 18 bits words. Somewhere between `E0` and `F0` make sane maximum
-output values depending on how many carriers there are.
-
 Feedback is a simple shift setting, so many of the lower settings may not have any audible effect, and the maximum setting is
 pure noise with a very uneven spectrum. Setting `10` (out of a possible `1F`) is about equivilent to a more familiar maximum
 effect.

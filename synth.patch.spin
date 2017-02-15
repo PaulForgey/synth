@@ -355,11 +355,16 @@ LevelScalesPtr  : array of 7 longs to receive level scale values
             v := ( Velocity #> ($7f >> data.VelocityScale(i)) ) + 1
             ' 1 =< v =< $80
 
-            l := Exp((data.LevelScale(i) * 10) << 3, 9)
+            ' exception to $ff to make it full output
+            l := data.LevelScale(i)
+            if l == $ff
+                l := $1_ffff
+            else
+                l := Exp((l * 10) << 3, 9)
 
             ' velocity scale
             l := (l * v) >> 7
-            ' 0=< l <= ~$1_f252
+            ' 0=< l <= $1_ffff
 
             ' key scaling
             k := (-80 #> (Note - data.Breakpoint(i)) <# $80)

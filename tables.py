@@ -17,8 +17,9 @@ class LogSinTable(Table):
     def __init__(self):
         super(LogSinTable, self).__init__("Sine", "WORD")
 
-        for x in range(0,0x400):
-            n = math.sin(((0.5 + x) / 1024.0) * math.pi / 2.0)
+        self.data.append(15 << 10)
+        for x in range(1,0x400):
+            n = math.sin((x / 1024.0) * math.pi / 2.0)
             l = math.log(n, 2.0)
 
             self.data.append(-int(round(l * 1024.0)))
@@ -165,5 +166,5 @@ def tables():
 
 
 tables()
-#test(0x3bff)
+#test(2)
 #test_env()
