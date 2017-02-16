@@ -262,7 +262,10 @@ Rate        : 8-bit UI rate
 
     ' convert UI level to EG
     if Env
-        Level := ( (Level << 2) | ((Level & $c0) >> 6) ) << 20
+        if Level == $ff
+            Level := CONSTANT($3ff << 20)
+        else
+            Level := Exp((Level * 10) << 3, 0) << 4
     else
         ' scale the pitch EG a litle differently. $80 is midpoint, of course
         Level := ( (($80 - Level) * $18) + $4000 ) << 15 ' +/- 3 octaves
