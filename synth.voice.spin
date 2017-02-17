@@ -72,9 +72,9 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         Tag_ := NewTag | $80
     else
         SetState(Channel, FALSE, @KeyDown_)
+        Tag_ &= $7f
         if State(Channel, @Sustain_) or KeyDown_
             return  ' sustain pedal is down or other channels still have us on
-        Tag_ &= $7f
 
     repeat i from 0 to 6
         env[i].Trigger(LONG[LevelScales][i], FALSE, WORD[RateScales][i])

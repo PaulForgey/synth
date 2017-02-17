@@ -140,7 +140,7 @@ PRI RestartOsc | i, ptr
     repeat i from 0 to 3
         osc[i].Start(@Freqs_[i*13], @EGs_[i*13], patch.FbPtr, patch.LFOBiasPtr(i), ptr, @Audio_[i], patch.LFOOutputPtr(i), patch.LFOShape(i), patch.Waves, patch.Alg)
         ptr := @Audio_[i]
-    AudioScale_ := BYTE[alg.AlgScalePtr][patch.Alg]
+    AudioScale_ := 4
 
 PRI MidiControl
     if not MidiControl_

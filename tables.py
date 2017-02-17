@@ -135,6 +135,7 @@ def test_env():
     v = EGLogTable()
     for x in range(0,0x400):
         yl = v.data[x]
+        yl += yl
         y = e.data[yl & 0x3ff] >> (yl >> 10)
 
         print y

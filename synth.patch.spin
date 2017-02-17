@@ -265,7 +265,7 @@ Rate        : 8-bit UI rate
         if Level == $ff
             Level := CONSTANT($3ff << 20)
         else
-            Level := Exp((Level * 10) << 3, 0) << 4
+            Level <<= 22
     else
         ' scale the pitch EG a litle differently. $80 is midpoint, of course
         Level := ( (($80 - Level) * $18) + $4000 ) << 15 ' +/- 3 octaves
@@ -363,7 +363,7 @@ LevelScalesPtr  : array of 7 longs to receive level scale values
             if l == $ff
                 l := $1_ffff
             else
-                l := Exp((l * 10) << 3, 9)
+                l <<= 9
 
             ' velocity scale
             l := (l * v) >> 7

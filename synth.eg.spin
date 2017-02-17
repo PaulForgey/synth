@@ -47,7 +47,7 @@ CON
     DAC_LeftLineIn      = 0 << 9
     DAC_RightLineIn     = 1 << 9
     DAC_LeftHPOut       = 2 << 9
-    DAC_RigthHPOut      = 3 << 9
+    DAC_RightHPOut      = 3 << 9
     DAC_Analog          = 4 << 9
     DAC_Digital         = 5 << 9
     DAC_Power           = 6 << 9
@@ -250,7 +250,7 @@ oploop
     mov r0, pitch                   ' save a copy of pitch
     rdword bias, bptr               ' read bias pointer
     add bptr, #2                    ' move to scale
-    and r0, pitchmask               ' mask pitch table offset
+    and r0, lutmask                 ' mask pitch table offset
     rdbyte scale, bptr              ' read scale
     sub delta, level                ' delta = goal-level
     abs delta, delta wc             ' |delta| saving original sign
@@ -275,17 +275,17 @@ oploop
     add ptr, #4                     ' point at loglevel
     add level, g_eg                 ' offset += eg log table
     rdword level, level             ' level = log(level)
-    ' [nop]
-    ' [nop]
-    wrlong level, ptr               ' write loglevel
+    shl level, #1                   ' tweak the linearity just a bit
+    max level, egmax                ' level *= 2 (so loglevel = log(linlevel)*2 )
+    wrlong level, ptr               ' write level
     add ptr, #4                     ' point to next eg
 
     djnz c1, #oploop                ' next operator
     djnz c0, #egloop                ' next group
     jmp #loop                       ' next cycle
 
-logmask         long    $3ff << 1
-pitchmask       long    $3ff << 1
+egmax           long    15 << 11
+lutmask         long    $3ff << 1
 pitch0          long    $2000_0000      ' unsigned bias offset from envelope midpoint to 0
 bclk            long    $1210_385d      ' 5_644_800 * 16 / 32 = 2_822_400 (fs*64)
 dacmask         long    $00_70_00_00
