@@ -105,7 +105,7 @@ VAR
     BYTE    LFOShapes_[4]                   ' LFO shapes 0-5 (refer to synth.osc for definitions)
     BYTE    Envelopes_[56]                  ' pitch + 6 operator envelopes
     BYTE    EGBiases_[14]                   ' pitch + 6 operator EG bias tuples: source, scale
-    BYTE    VelocityScales_[6]              ' velocity scaling 0-7, 0 for no velocity sensitivity
+    BYTE    VelocityScales_[6]              ' velocity scaling 0-8, 0 for no velocity sensitivity
     BYTE    LevelScales_[6]                 ' envelope level scaling, $ff is full, 0 is off
     BYTE    RateScales_[6]                  ' envelope rate scaling, 0 (none) to 31 (extreme)
     BYTE    PitchFixed_                     ' bit array of multiplier/fixed per operator (0=multplier, bit 0=operator 1)
@@ -338,8 +338,8 @@ o:  0-5
 returns:
 3210
 ||++ R (two bits same as:)
-|--- 1: up 0: down
----- 1: exp 0: lin
+|--- L 1: up 0: down
+---- L 1: exp 0: lin
 }}
     return Curves_[o]
 

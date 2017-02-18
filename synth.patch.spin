@@ -354,20 +354,21 @@ LevelScalesPtr  : array of 7 longs to receive level scale values
 
         repeat i from 0 to 5
             ptr += 4
-            ' velocity sensitivity is actually floor value, and possibly a cheesy way to handle this
-            v := ( Velocity #> ($7f >> data.VelocityScale(i)) ) + 1
-            ' 1 =< v =< $80
 
-            ' exception to $ff to make it full output
-            l := data.LevelScale(i)
-            if l == $ff
-                l := $1_ffff
+            ' give velocity a log curve, then invert
+            if Velocity == $7f
+                v := $1_0000
             else
-                l <<= 9
+                v := WORD[$c000][Velocity << 4]
+                v := ( ((v ^ $ffff) * data.VelocityScale(i)) >> 3 ) ^ $ffff
+
+            l := data.LevelScale(i)
+            if l <> 0 ' leave 0 at 0, otherwise round up so $ff is at full output ($100)
+                l++
 
             ' velocity scale
             l := (l * v) >> 7
-            ' 0=< l <= $1_ffff
+            ' 0=< l =< $2_0000
 
             ' key scaling
             k := (-80 #> (Note - data.Breakpoint(i)) <# $80)
@@ -521,7 +522,7 @@ PRI SetValue(v) | ptr
         data#Param_Pitch_Detune:
             AdjustWord(ptr, v, -$8000, $7fff)
         data#Param_Velocity:
-            AdjustByte(ptr, v, 0, 7)
+            AdjustByte(ptr, v, 0, 8)
         data#Param_Wave:
             AdjustBool(ptr, UIOperator_, v)
             Events_ |= Event_Reload
