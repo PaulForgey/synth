@@ -279,7 +279,7 @@ Rate        : 8-bit UI rate
 PRI SetEGBias(Env, Source, Scale) | ptr, sptr
 {{
 Env         : envelope 0-6 (0 being pitch, 1-6 operators)
-Source      : Source_ constant (do not use Modulation with envelope 0)
+Source      : Source_ constant
 Scale       : scale factor 0-31, higher being less influence
 }}
     case Source
@@ -289,11 +289,12 @@ Scale       : scale factor 0-31, higher being less influence
             else
                 sptr := @Zero
         Source_Modulation:
+            ' setting this on the pitch EG will duplicate the pitch bend control but with less precision
             sptr := @ModulationBias_
         other:
             sptr := @LFOOutputs_[Source-Source_LFO1]
             
-    ptr := @EGBiases_[Env * 2]
+    ptr := @EGBiases_[Env << 1]
     WORD[ptr][0] := sptr
     WORD[ptr][1] := Scale
 
@@ -317,7 +318,7 @@ PUB SetModulation(Value)
 {{
 Value       : MIDI controller value, 0-$7f
 }}
-    ModulationBias_ := EG_Mid | (($7f - Value) << 22)
+    ModulationBias_ := ($7f - Value) << 23
 
 PUB Pitches(PitchesPtr) | i
 {{
