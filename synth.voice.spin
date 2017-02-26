@@ -58,7 +58,7 @@ Faster way to accomplish Trigger with all 0 levels
     repeat i from 0 to 6
         env[i].Trigger(0, FALSE, 0)
 
-PUB Trigger(Channel, Pitches, LevelScales, RateScales, NewTag) | i
+PUB Trigger(Channel, Pitches, LevelScales, RateScales, NewTag) | i, reset
 {{
 Channel         : MIDI channel number (only used to track sustain)
 Pitches         : array of 6 longs
@@ -66,7 +66,11 @@ LevelScales     : array of 7 level scale longs. level 0 indicates key up
 RateScales      : array of 7 rate scale words.
 NewTag          : tag byte to assign this object instance (for MIDI note being played)
 }}
+    reset := FALSE
     if LONG[LevelScales][0]
+        if (Tag_ & $7f) <> NewTag
+            reset := TRUE
+            KeyDown_ := 0
         SetState(Channel, TRUE, @KeyDown_)
         LongMove(OscPitches_, Pitches, 6)
         Tag_ := NewTag | $80
@@ -76,6 +80,9 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         if State(Channel, @Sustain_) or KeyDown_
             return  ' sustain pedal is down or other channels still have us on
 
+    if reset
+        repeat i from 6 to 0
+            env[i].Panic
     repeat i from 0 to 6
         env[i].Trigger(LONG[LevelScales][i], FALSE, WORD[RateScales][i])
 
