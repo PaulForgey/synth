@@ -178,7 +178,7 @@ loop
     mov r0, phases+0                ' working phase state
     rdlong r1, g_mods+0             ' modulation value
 osc0_fb                             ' next instruction is patched to shl r1, fb for feedback operators
-    shl r1, #18                     ' scale: +/- 1 as one full rotation either direction
+    shl r1, #22                     ' scale: +/- 1 as one full rotation either direction
     add r0, r1                      ' add modulation to working state
     rdword r2, g_envs+0             ' read envelope in 4.10 << 1
     if_z mov phases+0, #0           ' resync oscillator if freq == 0
@@ -208,7 +208,7 @@ osc0_w
     mov r0, phases+1
     rdlong r1, g_mods+1
 osc1_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+1
     if_z mov phases+1, #0
@@ -238,7 +238,7 @@ osc1_w
     mov r0, phases+2
     rdlong r1, g_mods+2
 osc2_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+2
     if_z mov phases+2, #0
@@ -268,7 +268,7 @@ osc2_w
     mov r0, phases+3
     rdlong r1, g_mods+3
 osc3_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+3
     if_z mov phases+3, #0
@@ -298,7 +298,7 @@ osc3_w
     mov r0, phases+4
     rdlong r1, g_mods+4
 osc4_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+4
     if_z mov phases+4, #0
@@ -328,7 +328,7 @@ osc4_w
     mov r0, phases+5
     rdlong r1, g_mods+5
 osc5_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+5
     if_z mov phases+5, #0
@@ -358,7 +358,7 @@ osc5_w
     mov r0, phases+6
     rdlong r1, g_mods+6
 osc6_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+6
     if_z mov phases+6, #0
@@ -389,7 +389,7 @@ osc6_w
     mov r0, phases+7
     rdlong r1, g_mods+7
 osc7_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+7
     if_z mov phases+7, #0
@@ -419,7 +419,7 @@ osc7_w
     mov r0, phases+8
     rdlong r1, g_mods+8
 osc8_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+8
     if_z mov phases+8, #0
@@ -449,7 +449,7 @@ osc8_w
     mov r0, phases+9
     rdlong r1, g_mods+9
 osc9_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+9
     if_z mov phases+9, #0
@@ -479,7 +479,7 @@ osc9_w
     mov r0, phases+10
     rdlong r1, g_mods+10
 osc10_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+10
     if_z mov phases+10, #0
@@ -509,7 +509,7 @@ osc10_w
     mov r0, phases+11
     rdlong r1, g_mods+11
 osc11_fb
-    shl r1, #18
+    shl r1, #22
     add r0, r1
     rdword r2, g_envs+11
     if_z mov phases+11, #0
@@ -558,7 +558,7 @@ lfo_wave
     shr r1, #11                     ' isolate whole part of log
     ' [nop]
     rdword r0, r0                   ' r0=exp(r0) << scale
-    shl r0, #14                     ' envelope scale unscaled result
+    shl r0, #18                     ' envelope scale unscaled result
     shr r0, r1                      ' now scale from that (any consumers will round off the $3fff left)
     rdbyte fb, g_fb                 ' update global feedback
     negc r0, r0                     ' negate if needed
@@ -653,7 +653,7 @@ triangle_w                          ' patch for non-sine linear outputs
 feedback_op                         ' patch for feedback operator
     shl r1, fb
 normal_op                           ' patch for normal, non feedback operator
-    shl r1, #18
+    shl r1, #22
 
 LFOWaveTable
 WORD    @sine_w

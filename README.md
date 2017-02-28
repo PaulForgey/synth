@@ -14,7 +14,7 @@ Cheap, simple but also useful
 * 4 stage envelope
 * Pitch envelope
 * 8 voice polyphonic
-* 20 bit sample depth of output (each oscillator is 17 bit)
+* 20 bit sample depth of output (each oscillator is 12 bit)
 * 44.1K sample rate
 * each operator may use either sine or triangle waves as modulator or carrier
 
@@ -24,10 +24,10 @@ a few major differences and limitations from a DX7:
 * The LFOs are single tap, so they cannot resync per voice
 * The oscillators do not resync
 * Voices do not have an LFO delay
-* Envelopes are linear, so they lack some of the subtlely the DX7's EG curve had
+* Envelopes are more linear than the DX7, so they lack some of the subtlely the DX7's EG curve had
 
 On the upside, there are 4 LFOs and the operators may use triangle waves. Like the DX-7, the oscillators have 4096 samples per
-period from a 1024 sample lookup table, contributing to a familiar FM sound. Rate scaling is supported, but it needs work.
+period from a 1024 sample lookup table, contributing to a familiar FM sound. Rate and key scaling are supported.
 
 Circuit Design
 ==============
@@ -77,7 +77,7 @@ Programming Hints
 =================
 
 Feedback is a simple shift setting, so many of the lower settings may not have any audible effect, and the maximum setting is
-pure noise with a very uneven spectrum. Setting `10` (out of a possible `1F`) is about equivilent to a more familiar maximum
+pure noise with a very uneven spectrum. Setting `14` (out of a possible `1F`) is about equivilent to a more familiar maximum
 effect.
 
 The ability to use triangle waves is a little gimmicky, but very handy for recreating retro style sounds. As there is no low
@@ -89,9 +89,6 @@ granularity for frequency selection, relative or fixed, is within a pitch unit.
 
 Be patient. Programming FM synths is a bit of a pain to do. My goal was to try to suck less than the Yamaha DX series in this
 regard. I'm not sure if I succeeded or not. Supporting the MIDI data entry message would be quite helpful.
-
-If modulator's transition across an envelope stage sounds horrible, try reducing its output. Between the ability to overmodulate
-and the linearity of the EG curve, subtlety works better.
 
 If someone actually builds this thing, uses it, and comes up with some patches that sound nice, I'd love to capture user
 submissions in this repository.

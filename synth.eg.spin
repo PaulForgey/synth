@@ -136,8 +136,8 @@ PUB InitDAC(pin, ClkPin) | csb
     io.SendSpi(pin, 16, CONSTANT(DAC_Power | %0011_0111))
     ' set 44.1K, 256x base oversample (11.2896 MHz master clock)
     io.SendSpi(pin, 16, CONSTANT(DAC_Sample | %00_1000_00))
-    ' set 24 bit DSP mode A
-    io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_10_11))
+    ' set 20 bit DSP mode A
+    io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_01_11))
     ' select DAC
     io.SendSpi(pin, 16, CONSTANT(DAC_Analog | %10010))
     ' unmute
@@ -196,7 +196,7 @@ egloop
     ' [nop]
     rdbyte r0, g_scale
     shl audio, r0
-    rev audio, #8
+    rev audio, #12
     waitvid lcolors, #0
     mov VSCL, dacvscl
     waitvid rcolors, audio
