@@ -271,7 +271,7 @@ Rate        : 8-bit UI rate
         Level := ( (($80 - Level) * $18) + $4000 ) << 15 ' +/- 3 octaves
 
     ' convert UI rate to EG
-    Rate := Exp((Rate + 1) * 240, 16) - 1   ' $ff -> 30 << 11
+    Rate := (Rate + 1) * $f0 ' $f0 <= Rate <= $f000
 
     LONG[ptr][0] := Level
     LONG[ptr][1] := Rate
@@ -334,7 +334,7 @@ RateScalesPtr   : array of 7 words to receive rate scale values
 }}
     WORD[RateScalesPtr][0] := 0
     repeat i from 1 to 6
-        WORD[RateScalesPtr][i] := Exp(data.RateScale(i-1) * Note * 15, 16)
+        WORD[RateScalesPtr][i] := data.RateScale(i-1) * Note
 
 PUB NotePitch(Note) | k
 {{
@@ -505,7 +505,7 @@ PRI SetValue(v) | ptr
         data#Param_Transpose:
             AdjustByte(ptr, v, -$80, $7f)
         data#Param_RateScale:
-            AdjustByte(ptr, v, 0, 16)
+            AdjustByte(ptr, v, 0, $20)
         data#Param_PitchEG_Bias_Source, data#Param_EG_Bias_Source:
             AdjustByte(ptr, v, 0, Source_LFO4)
             UpdateEnv

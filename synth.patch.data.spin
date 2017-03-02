@@ -107,7 +107,7 @@ VAR
     BYTE    EGBiases_[14]                   ' pitch + 6 operator EG bias tuples: source, scale
     BYTE    VelocityScales_[6]              ' velocity scaling 0-8, 0 for no velocity sensitivity
     BYTE    LevelScales_[6]                 ' envelope level scaling, $ff is full, 0 is off
-    BYTE    RateScales_[6]                  ' envelope rate scaling, 0 (none) to 31 (extreme)
+    BYTE    RateScales_[6]                  ' envelope rate scaling, 0 (none) to 32 (extreme)
     BYTE    PitchFixed_                     ' bit array of multiplier/fixed per operator (0=multplier, bit 0=operator 1)
     BYTE    Transpose_                      ' transposition, in signed note steps
     BYTE    Waves_                          ' bit array of sine/triangle per operator (0=sine, bit 0=operator 1)

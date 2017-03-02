@@ -46,10 +46,10 @@ PUB Trigger(LevelScale, Slide, RateScale)
 {{
 LevelScale      : level scaling value 1-$400 if key down, 0 if key up
 Slide           : for a pitch envelope, TRUE to not reset EG level (ignored otherwise)
-RateScale       : rate scaling value
+RateScale       : rate scaling value 0-$1000
 }}
     if LevelScale
-        RateScale_ := RateScale
+        RateScale_ := $1000 - RateScale
         LevelScale_ := LevelScale
         SetEgRate(0)
         if LevelScale < 0 and not Slide
@@ -131,9 +131,19 @@ Return programmed EG level value for state, scaled according to Trigger
     else
         result := (result >> 10) * LevelScale_
 
-PRI EnvRate
+PRI EnvRate | e
 {{
 Return programmed EG rate for state, scaled according to Trigger
 }}
-    return LONG[EnvPtr_][(State_ << 1) + 1] + (RateScale_ << 9)
+    e := $f000 - LONG[EnvPtr_][(State_ << 1) + 1]
+    e := (e * RateScale_) >> 12
+    e := $f000 - e
+
+    result := WORD[$d000][e & $7ff] | $1_0000
+    e >>= 11
+    if e > 16
+        result <<= (e - 16)
+    else
+        result >>= (16 - e)
+    result <#= $3fff_ffff
 
