@@ -50,6 +50,7 @@ Also reset KeyDown and Sustain states for all channels
         env[i].Panic
     KeyDown_ := 0
     Sustain_ := 0
+    Tag_ := 0
 
 PUB UnTrigger | i
 {{
@@ -80,11 +81,8 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         if State(Channel, @Sustain_) or KeyDown_
             return  ' sustain pedal is down or other channels still have us on
 
-    if reset
-        repeat i from 6 to 0
-            env[i].Panic
-    repeat i from 0 to 6
-        env[i].Trigger(LONG[LevelScales][i], FALSE, WORD[RateScales][i])
+    repeat i from 6 to 0 ' reverse order so pitch eg resets at 0 output
+        env[i].Trigger(LONG[LevelScales][i], reset, WORD[RateScales][i])
 
 PUB NewNote(PitchLevel, NewTag)
 {{
@@ -93,7 +91,7 @@ PitchLevel      : new LevelScales[0] value
 NewTag          : new tag byte to assign this object instance
 }}
     Tag_ := NewTag | $80
-    env[0].Trigger(PitchLevel, TRUE, 0)
+    env[0].Trigger(PitchLevel, FALSE, 0)
 
 PUB Sustain(Channel, Active)
 {{

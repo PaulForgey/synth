@@ -41,7 +41,6 @@ CON
     Param_EG
     Param_Fixed
     Param_Audio
-    Param_Scale
     Param_Max
 
     DAC_LeftLineIn      = 0 << 9
@@ -66,13 +65,12 @@ VAR
     LONG EG_[EG_Max * 28]
     LONG OscPitches_[24]
 
-PUB Start(BendPtr, Biases, FixedPtr, AudioPtr, ScalePtr) | e
+PUB Start(BendPtr, Biases, FixedPtr, AudioPtr) | e
 {{
 BendPtr     : long pointer to global pitch bend value, signed +/- $2000_0000 (+/- 16 octaves)
 Biases      : word array of 7 envelope bias pointer and scale entries (14 words total)
 FixedPtr    : byte pointer to bit array of fixed frequency operators
 AudioPtr    : optional audio output
-ScalePtr    : if AudioPtr, byte pointer to audio scale factor
 }}
     Stop
     Params_[0] := tables.EGLogPtr
@@ -83,7 +81,6 @@ ScalePtr    : if AudioPtr, byte pointer to audio scale factor
     Params_[5] := @EG_
     Params_[6] := FixedPtr
     Params_[7] := AudioPtr
-    Params_[8] := ScalePtr
 
     LongFill(@OscPitches_, !0, 24)
 
@@ -136,8 +133,8 @@ PUB InitDAC(pin, ClkPin) | csb
     io.SendSpi(pin, 16, CONSTANT(DAC_Power | %0011_0111))
     ' set 44.1K, 256x base oversample (11.2896 MHz master clock)
     io.SendSpi(pin, 16, CONSTANT(DAC_Sample | %00_1000_00))
-    ' set 20 bit DSP mode A
-    io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_01_11))
+    ' set 16 bit DSP mode A
+    io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_00_11))
     ' select DAC
     io.SendSpi(pin, 16, CONSTANT(DAC_Analog | %10010))
     ' unmute
@@ -168,8 +165,6 @@ entry
     add r0, #4
     rdword g_audio, r0 wz           ' optional audio output
     if_z jmp #loop
-    add r0, #4
-    rdword g_scale, r0              ' audio scale (ignored if g_audio 0)
 
     or DIRA, dacmask
     movs VCFG, #%00110000           ' use only pins 4..5 in the group
@@ -192,11 +187,8 @@ egloop
     if_z jmp #:eg
 
     rdlong audio, g_audio
+    rev audio, #16
     mov VSCL, startvscl
-    ' [nop]
-    rdbyte r0, g_scale
-    shl audio, r0
-    rev audio, #12
     waitvid lcolors, #0
     mov VSCL, dacvscl
     waitvid rcolors, audio
@@ -303,7 +295,6 @@ g_biases        res     1
 g_egs           res     1
 g_fixed         res     1
 g_audio         res     1
-g_scale         res     1
 ptr             res     1
 bptr            res     1
 pptr            res     1
