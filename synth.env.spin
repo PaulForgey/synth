@@ -52,15 +52,8 @@ RateScale       : rate scaling value 0-$1000
         RateScale_ := $1000 - RateScale
         LevelScale_ := LevelScale
         if Reset
-            ' clumsy way to set a state quickly while allowing for racing an interation
-            SetEgRate(0)
-            if LevelScale < 0
-                SetEgGoal($2000_0000 + LevelScale)
-                SetEgLevel($2000_0000 + LevelScale)
-            else
-                SetEgGoal(0)
-                SetEgLevel(0)
-
+            SetEgRate($3fff_ffff)
+            SetEgGoal(EnvLevel(3))
         SetState(0)
     else
         SetState(3)
@@ -90,8 +83,8 @@ Transition to new state
 s       : state (0-3)
 }}
     State_ := s
-    SetEgRate(EnvRate)
-    SetEgGoal(EnvLevel)
+    SetEgRate(EnvRate(s))
+    SetEgGoal(EnvLevel(s))
 
 PRI EgLevel
 {{
@@ -126,22 +119,22 @@ r       : 0-$3fff_ffff
 }}
     LONG[RatePtr_] := r
 
-PRI EnvLevel
+PRI EnvLevel(s)
 {{
 Return programmed EG level value for state, scaled according to Trigger
 }}
-    result := LONG[EnvPtr_][State_ << 1]
+    result := LONG[EnvPtr_][s << 1]
 
     if LevelScale_ < 0
         result := (result + LevelScale_)
     else
         result := (result >> 10) * LevelScale_
 
-PRI EnvRate | e
+PRI EnvRate(s) | e
 {{
 Return programmed EG rate for state, scaled according to Trigger
 }}
-    e := $f000 - LONG[EnvPtr_][(State_ << 1) + 1]
+    e := $f000 - LONG[EnvPtr_][(s << 1) + 1]
     e := (e * RateScale_) >> 12
     e := $f000 - e
 
