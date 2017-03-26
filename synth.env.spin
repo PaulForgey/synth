@@ -40,7 +40,7 @@ EnvPtr      : pointer to envelope sequence of 8 longs (L1/R1..L4/R4)
     GoalPtr_ := @LONG[EgPtr][1]
     RatePtr_ := @LONG[EgPtr][2]
     EnvPtr_ := EnvPtr
-    SetState(3)
+    State_ := 3
 
 PUB Trigger(LevelScale, Reset, RateScale)
 {{
