@@ -188,6 +188,9 @@ egloop
 
     rdlong audio, g_audio
     rev audio, #16
+    mov r0, audio
+    shl r0, #16
+    or audio, r0
     mov VSCL, startvscl
     waitvid lcolors, #0
     mov VSCL, dacvscl

@@ -23,7 +23,7 @@ SOFTWARE.
 }
 
 CON
-    BufSize         = 32        ' must have even log2
+    BufSize         = 64        ' must have even log2
     BufMask         = BufSize-1
 
 VAR

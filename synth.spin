@@ -151,7 +151,7 @@ PRI MidiData(Ptr, Size)
         MidiControl_ := 0
 
 ' top level MIDI parsing
-PRI MidiLoop | c
+PRI MidiLoop | m, c
     if patch.MidiConfig
         io.RemoveAllChannels
         if patch.Omni
@@ -159,9 +159,9 @@ PRI MidiLoop | c
         else
             io.AddChannel(patch.Channel)
 
-    repeat while MidiControl
-        c := MidiControl & $0f
-        case MidiControl & $f0
+    repeat while (m := MidiControl) <> 0
+        c := m & $0f
+        case m & $f0
             MIDI_NoteOff:
                 OnMidiNoteOff(c)
             MIDI_NoteOn:
