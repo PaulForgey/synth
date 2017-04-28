@@ -73,7 +73,6 @@ OBJ
     alg         : "synth.alg.table"
 
 VAR
-    LONG    KeysDown_[4]            ' bit array of keys that are presently down
     LONG    Pitches_[6]             ' parameter from patch -> voice (not persistent)
     LONG    LevelScales_[7]         ' parameter from patch -> voice (not persistent)
     WORD    RateScales_[7]          ' parameter from patch -> voice (not persistent)
@@ -173,7 +172,7 @@ PRI MidiLoop | m, c
             MIDI_PitchBend:
                 OnMidiPitchBend(c)
             other:  ' system common
-                case MidiControl
+                case m
                     MIDI_SysEx:
                         OnMidiSysEx
                     other:
@@ -233,7 +232,7 @@ PRI OnMidiSysEx | d
 ' parsed MIDI event handling
 PRI OnSustain(Channel, Active) | v
     repeat v from 0 to 7
-        voice[v].Sustain(Channel, Active)
+        voice[v].Sustain(Active)
 
 PRI AllOff | v
     repeat v from 0 to 7
@@ -242,32 +241,13 @@ PRI AllOff | v
 PRI OnModulation(Value)
     patch.SetModulation(Value)
 
-PRI HiNote | i
-    repeat i from 3 to 0
-        result := >|KeysDown_[i]
-        if result
-            result += (i << 5)
-            quit
-    result--
-
 PRI OnNote(Channel, Note, Velocity) | v, n, i
-    n := -1
     if patch.Mono
-        if Velocity
-            n := HiNote
-            KeysDown_[Note >> 5] |= (1 << (Note & $1f))
-        else
-            KeysDown_[Note >> 5] &= !(1 << (Note & $1f))
-            n := Note
-            i := HiNote
-            if i => 0
-                Note := i
-    if n < 0
+        v := Channel & $7
+        n := voice[v].MonoNote(Note, Velocity)
+    else
         n := Note
 
-    if patch.Mono
-        v := 0
-    else
         ' use same voice for same note
         repeat v from 0 to 7
             if voice[v].Tag & $7f == n
@@ -283,12 +263,14 @@ PRI OnNote(Channel, Note, Velocity) | v, n, i
                     quit
 
     if Note <> n
+        if not Velocity
+            Note := n
         voice[v].NewNote(patch.NotePitch(Note), Note)
     else
         patch.LevelScales(Velocity, Note, @LevelScales_)
         patch.Pitches(@Pitches_)
         patch.RateScales(Note, @RateScales_)
-        voice[v].Trigger(Channel, @Pitches_, @LevelScales_, @RateScales_, Note)
+        voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note)
 
 PRI OnPitchBend(Value)
     patch.SetPitchWheel(Value)
