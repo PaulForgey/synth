@@ -82,7 +82,7 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
         if State_
             return  ' sustain pedal is down
 
-    repeat i from 6 to 0 ' reverse order so pitch eg resets at 0 output
+    repeat i from 0 to 6
         env[i].Trigger(LONG[LevelScales][i], reset, WORD[RateScales][i])
 
 PUB NewNote(PitchLevel, NewTag)
