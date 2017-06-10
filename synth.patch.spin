@@ -42,6 +42,7 @@ CON
     #0
     Cmd_None
     Cmd_Load
+    Cmd_Compare
     Cmd_Save
     Cmd_Dump
     Cmd_Global
@@ -77,6 +78,7 @@ VAR
     BYTE    UIOperator_                 ' operator being edited (0-5)
     BYTE    UILFO_                      ' LFO being edited (0-3)
     BYTE    UIParam_                    ' ui parameter selection
+    BYTE    Comparing_                  ' TRUE if edited patch is stashed
     BYTE    Menu_[3]                    ' what the the three buttons currently do
     BYTE    ValueBuf_[7]                ' buffer to render displayed value
 
@@ -110,12 +112,6 @@ Cycle the UI loop
         OnKnob(b)
     if Redraw
         DrawGraph
-
-PUB ProgramChange(Value)
-{{
-Handle MIDI program change control message
-}}
-    data.ProgramChange(Value)
 
 PUB LoadFromMidi(s) | sptr, dptr, n
 {{
@@ -403,6 +399,8 @@ PRI OnButton(b)
     case Menu_[b-1]
         Cmd_Load:
             OnLoad
+        Cmd_Compare:
+            OnCompare
         Cmd_Save:
             OnSave
         Cmd_Dump:
@@ -441,7 +439,19 @@ PRI SetSelection(s)
 
 PRI OnLoad
     data.Load
+    Comparing_ := FALSE
     Events_ |= (Event_Reload | Event_Silence)
+    UpdateAll
+
+PRI OnCompare
+    if Comparing_
+        data.Restore
+        Comparing_ := FALSE
+    else
+        data.Stash
+        data.Load
+        Comparing_ := TRUE
+    Events_ |= Event_Reload
     UpdateAll
 
 PRI UpdateAll
@@ -626,7 +636,7 @@ PRI ShowSelection
     ' populate the button labels
     case UIParam_
         data#Param_Load:
-            SetButtons(Cmd_Dump, Cmd_None, Cmd_Load)
+            SetButtons(Cmd_Dump, Cmd_Compare, Cmd_Load)
         data#Param_Save:
             SetButtons(Cmd_Dump, Cmd_Save, Cmd_None)
         data#Param_CopyTo:
@@ -863,6 +873,10 @@ PRI DrawAlg | ops, row
     ops := @BYTE[algs.AlgTablePtr][data.Alg * 6]
     DrawOp(0, 0, 0, ops)
 
+PRI DrawCompare
+    if Comparing_
+        display.Write(1, 26, STRING("COMPARE"))
+
 PRI DrawEnv(e) | s
     ValueBuf_[2] := 0
     display.Write(0, 28, STRING("LEVEL"))
@@ -876,6 +890,8 @@ PRI DrawEnv(e) | s
 PRI DrawGraph
     ClearGraph
     case UIParam_
+        data#Param_Load:
+            DrawCompare
         data#Param_Pitch_L1..data#Param_Pitch_R4:
             DrawEnv(0)
         data#Param_L1..data#Param_R4:
@@ -905,6 +921,7 @@ BYTE    " B"
 CmdLabels
 BYTE    "   "
 BYTE    "LOD"
+BYTE    "CMP"
 BYTE    "SAV"
 BYTE    "DMP"
 BYTE    "GBL"

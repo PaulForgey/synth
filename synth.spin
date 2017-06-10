@@ -47,7 +47,6 @@ CON
     MIDI_NoteOff        = $80
     MIDI_NoteOn         = $90
     MIDI_ControlChange  = $b0
-    MIDI_ProgramChange  = $c0
     MIDI_PitchBend      = $e0
     MIDI_SysEx          = $f0
     MIDI_EndSysEx       = $f7
@@ -167,8 +166,6 @@ PRI MidiLoop | m, c
                 OnMidiNoteOn(c)
             MIDI_ControlChange:
                 OnMidiControlChange(c)
-            MIDI_ProgramChange:
-                OnMidiProgramChange(c)
             MIDI_PitchBend:
                 OnMidiPitchBend(c)
             other:  ' system common
@@ -211,11 +208,6 @@ PRI OnMidiControlChange(c) | d, control
                 OnMono(d)
             MIDI_C_Poly:
                 OnPoly
-
-PRI OnMidiProgramChange(c) | d
-    d := 0
-    if MidiData(@d, 1)
-        OnProgramChange(d)
 
 PRI OnMidiPitchBend(c) | d
     d := 0
@@ -274,9 +266,6 @@ PRI OnNote(Channel, Note, Velocity) | v, n, i
 
 PRI OnPitchBend(Value)
     patch.SetPitchWheel(Value)
-
-PRI OnProgramChange(Value)
-    'patch.ProgramChange(Value)
 
 PRI OnOmni(Value)
     patch.SetOmni(Value)

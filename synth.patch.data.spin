@@ -90,6 +90,7 @@ CON
     Param_Last_LFO                  = Param_LFO_Shape
 
     BufferLength                    = 176   ' includes Midi encoding overhead
+    PatchLength                     = 154   ' ..without the encoding overhead
 
 OBJ
     store       : "synth.patch.data.store"
@@ -119,6 +120,7 @@ VAR
     BYTE    Pad_[22]                        ' 154 (already divisible by 7) + 8th bit for 22 groups
     ' from here down is not written to NV storage
     BYTE    LabelBuf_[6]
+    BYTE    Stash_[PatchLength]             ' swap/compare buffer
     BYTE    CopyTo_
     BYTE    Channel_
     BYTE    Omni_
@@ -138,7 +140,7 @@ PUB LoadDefault | i, j, ptr
 {{
 Load up a default patch, algorithm 1, single operator 1 for a sine wave, organ shaped envelopes on all operators
 }}
-    ByteFill(@LFOFreqs_, 0, @LabelBuf_ - @LFOFreqs_)
+    ByteFill(@LFOFreqs_, 0, BufferLength)
     PitchWheelRange_ := 13  ' 2 octaves
     ptr := @Envelopes_
     repeat i from 0 to 3
@@ -156,25 +158,30 @@ Load up a default patch, algorithm 1, single operator 1 for a sine wave, organ s
         LFOLevels_[i] := $ff
     CopyTo_ := 1
 
-PUB ProgramChange(Value)
-{{
-Handle program change MIDI control message
-}}
-    PatchNum_ := (PatchNum_ & !$7f) | Value
-    Load
-
 PUB Load
 {{
 Load selected patch number from NV storage
 }}
-    if not store.Read(PatchNum_, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
+    if not store.Read(PatchNum_, @LFOFreqs_, BufferLength)
         LoadDefault
+
+PUB Stash
+{{
+Stash patch into temporary save area
+}}
+    ByteMove(@Stash_, @LFOFreqs_, PatchLength)
+
+PUB Restore
+{{
+Restore save area
+}}
+    ByteMove(@LFOFreqs_, @Stash_, PatchLength)
 
 PUB Save
 {{
 Save patch to NV storage at selected patch number
 }}
-    store.Write(PatchNum_, @LFOFreqs_, @LabelBuf_-@LFOFreqs_)
+    store.Write(PatchNum_, @LFOFreqs_, BufferLength)
 
 PUB ParamLabel(p)
 {{
