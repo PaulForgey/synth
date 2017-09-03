@@ -71,14 +71,13 @@ NewTag          : tag byte to assign this object instance (for MIDI note being p
 }}
     reset := FALSE
     if LONG[LevelScales][0]
-        if Tag_ & $7f <> NewTag
+        if Tag_ <> NewTag
             reset := TRUE
         SetKey(TRUE)
-        Tag_ := NewTag | $80
+        Tag_ := NewTag
         LongMove(OscPitches_, Pitches, 6)
     else
         SetKey(FALSE)
-        Tag_ &= $7f
         if State_
             return  ' sustain pedal is down
 
@@ -91,7 +90,7 @@ Transition to new note in existing envelope state
 PitchLevel      : new LevelScales[0] value
 NewTag          : new tag byte to assign this object instance
 }}
-    Tag_ := NewTag | $80
+    Tag_ := NewTag
     env[0].Trigger(PitchLevel, FALSE, 0)
 
 PUB Sustain(Active)

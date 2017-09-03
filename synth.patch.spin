@@ -39,6 +39,9 @@ CON
     Event_MidiConfig    = %0100
     Event_Redraw        = %1000
 
+    State_Modal         = %01
+    State_Compare       = %10
+
     #0
     Cmd_None
     Cmd_Load
@@ -78,7 +81,7 @@ VAR
     BYTE    UIOperator_                 ' operator being edited (0-5)
     BYTE    UILFO_                      ' LFO being edited (0-3)
     BYTE    UIParam_                    ' ui parameter selection
-    BYTE    Comparing_                  ' TRUE if edited patch is stashed
+    BYTE    State_                      ' TRUE if edited patch is stashed
     BYTE    Menu_[3]                    ' what the the three buttons currently do
     BYTE    ValueBuf_[7]                ' buffer to render displayed value
 
@@ -422,11 +425,12 @@ PRI OnButton(b)
         Cmd_None:
 
 PRI OnKnob(b)
-    case b
-        1:
-            SetSelection(io.Knob(1))
-        2..3:
-            SetValue(io.Value)
+    if not (State_ & State_Modal)
+        case b
+            1:
+                SetSelection(io.Knob(1))
+            2..3:
+                SetValue(io.Value)
  
 PRI SetSelection(s)
     repeat while s < 0
@@ -439,18 +443,18 @@ PRI SetSelection(s)
 
 PRI OnLoad
     data.Load
-    Comparing_ := FALSE
-    Events_ |= (Event_Reload | Event_Silence)
+    State_ &= CONSTANT(!(State_Compare | State_Modal))
+    Events_ |= CONSTANT(Event_Reload | Event_Silence)
     UpdateAll
 
 PRI OnCompare
-    if Comparing_
+    if State_ & State_Compare
         data.Restore
-        Comparing_ := FALSE
+        State_ &= CONSTANT(!(State_Compare | State_Modal))
     else
         data.Stash
         data.Load
-        Comparing_ := TRUE
+        State_ |= CONSTANT(State_Compare | State_Modal)
     Events_ |= Event_Reload
     UpdateAll
 
@@ -874,7 +878,7 @@ PRI DrawAlg | ops, row
     DrawOp(0, 0, 0, ops)
 
 PRI DrawCompare
-    if Comparing_
+    if State_ & State_Compare
         display.Write(1, 26, STRING("COMPARE"))
 
 PRI DrawEnv(e) | s

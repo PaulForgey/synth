@@ -79,8 +79,8 @@ VAR
     WORD    EGs_[13*4]              ' 12 operators, 1 LFO per bank * 4 (oriented for osc object)
     LONG    Audio_[4]               ' audio output pointers * 4
     BYTE    MidiControl_            ' current MIDI control message, or 0 if waiting
-    BYTE    NextVoice_              ' round robin voice assigment
     BYTE    RunVoice_               ' round robin voice idle tasking
+    BYTE    Voices_[8]              ' LRU of voices
 
 PUB Boot | err
     io.Start(Pin_Buttons, Pin_MIDI, Pin_Debug)
@@ -128,6 +128,7 @@ PRI Init | i, j, e
 
     ' init the voices
     repeat i from 0 to 7
+        Voices_[i] := i
         ' each voice uses a set of 7 EGs (pitch, op1-6)
         ' 8 voices share 2 EG cores, with each EG core providing 4 sets of 7 EGs
         voice[i].Init(eg[i>>2].EgPtr((i&3)*7,0), eg[i>>2].OscPitches(i&3), patch.Envelopes)
@@ -233,26 +234,30 @@ PRI AllOff | v
 PRI OnModulation(Value)
     patch.SetModulation(Value)
 
-PRI OnNote(Channel, Note, Velocity) | v, n, i
+PRI OnNote(Channel, Note, Velocity) | v, n, i, w
     if patch.Mono
         v := Channel & $7
         n := voice[v].MonoNote(Note, Velocity)
     else
         n := Note
 
-        ' use same voice for same note
-        repeat v from 0 to 7
-            if voice[v].Tag & $7f == n
-                quit
-        if v > 7
-            ' no current/last voice for this note, so round-robbin assign one
-            if not Velocity
-                return ' note up on not-playing (likely exceeded polyphonic limit)
-            repeat 8
-                v := NextVoice_
-                NextVoice_ := (NextVoice_+1) & $7
-                if not (voice[v].Tag & $80) ' only take over a key down voice as a last resort
+        if Velocity
+            ' on key down, rotate oldest voice into use
+            v := Voices_[0]
+            repeat i from 0 to 6
+                w := Voices_[i+1]
+                if voice[w].Tag == n ' swap in same voice playing same note
+                    w := v
+                    v := Voices_[i+1]
+                Voices_[i] := w
+            Voices_[7] := v
+        else
+            repeat i from 0 to 7
+                v := Voices_[i]
+                if voice[v].Tag == n
                     quit
+            if i > 7
+                return ' note up for voice not playing
 
     if Note <> n
         if not Velocity
