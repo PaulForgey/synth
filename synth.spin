@@ -80,6 +80,7 @@ VAR
     LONG    Audio_[4]               ' audio output pointers * 4
     BYTE    MidiControl_            ' current MIDI control message, or 0 if waiting
     BYTE    RunVoice_               ' round robin voice idle tasking
+    BYTE    LastVelocity_[8]        ' last non-0 velocity for mono mode
     BYTE    Voices_[8]              ' LRU of voices
 
 PUB Boot | err
@@ -238,6 +239,15 @@ PRI OnNote(Channel, Note, Velocity) | v, n, i, w
     if patch.Mono
         v := Channel & $7
         n := voice[v].MonoNote(Note, Velocity)
+
+        if Velocity
+            LastVelocity_[v] := Velocity
+        elseif n <> Note
+            if n == voice[v].Tag ' if we let up a different note than what is playing, do nothing
+                return
+            Note := n
+            n := -1
+            Velocity := LastVelocity_[v]
     else
         n := Note
 
@@ -259,15 +269,10 @@ PRI OnNote(Channel, Note, Velocity) | v, n, i, w
             if i > 7
                 return ' note up for voice not playing
 
-    if Note <> n
-        if not Velocity
-            Note := n
-        voice[v].NewNote(patch.NotePitch(Note), Note)
-    else
-        patch.LevelScales(Velocity, Note, @LevelScales_)
-        patch.Pitches(@Pitches_)
-        patch.RateScales(Note, @RateScales_)
-        voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note)
+    patch.LevelScales(Velocity, Note, @LevelScales_)
+    patch.Pitches(@Pitches_)
+    patch.RateScales(Note, @RateScales_)
+    voice[v].Trigger(@Pitches_, @LevelScales_, @RateScales_, Note, Note == n)
 
 PRI OnPitchBend(Value)
     patch.SetPitchWheel(Value)

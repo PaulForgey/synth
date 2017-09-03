@@ -62,36 +62,28 @@ Faster way to accomplish Trigger with all 0 levels
     repeat i from 0 to 6
         env[i].Trigger(0, FALSE, 0)
 
-PUB Trigger(Pitches, LevelScales, RateScales, NewTag) | i, reset
+PUB Trigger(Pitches, LevelScales, RateScales, NewTag, Reset) | i
 {{
 Pitches         : array of 6 longs
 LevelScales     : array of 7 level scale longs. level 0 indicates key up
 RateScales      : array of 7 rate scale words.
 NewTag          : tag byte to assign this object instance (for MIDI note being played)
+Reset           : potentially reset envelopes
 }}
-    reset := FALSE
     if LONG[LevelScales][0]
-        if Tag_ <> NewTag
-            reset := TRUE
+        if Tag_ == NewTag
+            Reset := FALSE
         SetKey(TRUE)
         Tag_ := NewTag
         LongMove(OscPitches_, Pitches, 6)
     else
+        Reset := FALSE
         SetKey(FALSE)
         if State_
             return  ' sustain pedal is down
 
     repeat i from 0 to 6
-        env[i].Trigger(LONG[LevelScales][i], reset, WORD[RateScales][i])
-
-PUB NewNote(PitchLevel, NewTag)
-{{
-Transition to new note in existing envelope state
-PitchLevel      : new LevelScales[0] value
-NewTag          : new tag byte to assign this object instance
-}}
-    Tag_ := NewTag
-    env[0].Trigger(PitchLevel, FALSE, 0)
+        env[i].Trigger(LONG[LevelScales][i], Reset, WORD[RateScales][i])
 
 PUB Sustain(Active)
 {{
