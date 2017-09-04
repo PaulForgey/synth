@@ -99,9 +99,6 @@ Accessor for "tag" value, which is just the MIDI node currently playing
 }}
     return Tag_
 
-PUB Untag
-    Tag_ := 0
-
 PUB Run | i
 {{
 Run an iteration of the loop

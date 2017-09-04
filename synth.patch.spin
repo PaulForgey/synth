@@ -73,7 +73,7 @@ VAR
     LONG    LFOOutputs_[4]              ' LFO output
     LONG    LFOBiases_[4]               ' LFO biases
     LONG    Envelopes_[56]              ' 7 envelopes, each 4 sets of 2 longs (level/rate)
-    LONG    RedrawClk_                  ' delayed redraw
+    LONG    SleepClk_                   ' display sleep
     WORD    EGBiases_[14]               ' EG bias source ptr/scale value
     WORD    LFOLevels_[4]               ' LFO levels in unshifted loglevel for, $5800 being silent
     WORD    UILastNote_                 ' hack to adjust note at a time
@@ -82,6 +82,7 @@ VAR
     BYTE    UILFO_                      ' LFO being edited (0-3)
     BYTE    UIParam_                    ' ui parameter selection
     BYTE    State_                      ' TRUE if edited patch is stashed
+    BYTE    DisplayState_               ' sleeping or dimmed
     BYTE    Menu_[3]                    ' what the the three buttons currently do
     BYTE    ValueBuf_[7]                ' buffer to render displayed value
 
@@ -102,17 +103,19 @@ StorePin    : CS pin assigned to flash
     SetPitchWheel($2000)
     ShowSelection
     Events_ |= Event_MidiConfig | Event_Reload
+    DisplayState_ := display#Sleep_Normal
 
-PUB Run | b
+PUB Run | b, c
 {{
 Cycle the UI loop
 }}
     b := io.Pressed
+    c := io.Turned
+    WakeDisplay(b or c)
     if b
         OnButton(b)
-    b := io.Turned
-    if b
-        OnKnob(b)
+    if c
+        OnKnob(c)
     if Redraw
         DrawGraph
 
@@ -201,30 +204,42 @@ PUB Reload
 Read self clearing event state needing oscillator reload
 }}
     result := Events_ & Event_Reload
-    Events_ &= !Event_Reload
+    Events_ &= CONSTANT(!Event_Reload)
 
 PUB Silence
 {{
 Read self clearing event state needing to panic the EGs
 }}
     result := Events_ & Event_Silence
-    Events_ &= !Event_Silence
+    Events_ &= CONSTANT(!Event_Silence)
 
 PUB MidiConfig
 {{
 Read self clearing event state indicating the list of MIDI channels has changed
 }}
     result := Events_ & Event_MidiConfig
-    Events_ &= !Event_MidiConfig
+    Events_ &= CONSTANT(!Event_MidiConfig)
 
-PRI Redraw | n
+PRI Redraw
+    result := Events_ & Event_Redraw
+    Events_ &= CONSTANT(!Event_Redraw)
+
+PRI WakeDisplay(Activity) | n
     n := CNT
-    if RedrawClk_ and (RedrawClk_ - n) > 0
-        result := 0
-    else
-        RedrawClk_ := n + (CLKFREQ >> 2)
-        result := Events_ & Event_Redraw
-        Events_ &= !Event_Redraw
+    if Activity or not SleepClk_
+        SleepClk_ := n + (CLKFREQ * 5)
+        SetDisplayState(display#Sleep_Normal)
+    elseif (SleepClk_ - n) < 0
+        SleepClk_ := n + (CLKFREQ * 20)
+        if DisplayState_ == display#Sleep_Normal
+            SetDisplayState(display#Sleep_Dim)
+        else
+            SetDisplayState(display#Sleep_Off)
+
+PRI SetDisplayState(State)
+    if DisplayState_ <> State
+        DisplayState_ := State
+        display.Sleep(State)
 
 '
 ' interface patch data to native

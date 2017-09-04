@@ -28,6 +28,11 @@ OBJ
 VAR
     BYTE    Pin_
 
+CON
+    Sleep_Dim    = 0
+    Sleep_Off    = 2
+    Sleep_Normal = 3
+
 PUB Init(Pin) | x
 {{
 Init OLED display
@@ -36,13 +41,16 @@ Pin     : Pin assigned to SPI CS line
     Pin_ := Pin
     DIRA |= %100 ' address line
 
-    Send(0, $af)
+    Sleep(Sleep_Normal)
     repeat x from $b0 to $b3
         Send(0, x)
         Send(0, $00)
         Send(0, $10)
         repeat 132
             Send(1, 0)
+
+PUB Sleep(s)
+    Send(0, $ac | (s & $3))
 
 PRI PutC(c) | ptr, inverse
 {{
