@@ -171,8 +171,8 @@ entry
     movd VCFG, #2                   ' on pin group 2 (16-23)
     movi VCFG, #%01_00_0_000        ' VGA 2 color
     mov FRQA, bclk
-    movs CTRA, #22
-    movi CTRA, #%010_010            ' PLL single ended (BCLK) @ PLL/32 (VCO/2) = fs*64
+    movs CTRA, #22                  ' pin 22
+    movi CTRA, #%010_010            ' PLL single ended (BCLK) @ VCO/32 (PLL/2) = fs*64
 
 loop
     rdlong bendw, g_bend            ' update global bend value
@@ -282,7 +282,7 @@ oploop
 egmax           long    15 << 11
 lutmask         long    $3ff << 1
 pitch0          long    $2000_0000      ' unsigned bias offset from envelope midpoint to 0
-bclk            long    $1210_385d      ' 5_644_800 * 16 / 32 = 2_822_400 (fs*64)
+bclk            long    $1210_385c      ' 5_644_800 * 16 / 32 = 2_822_400 (fs*64 = 44100)
 dacmask         long    $00_70_00_00
 dacvscl         long    (1 << 12) | 63  ' dac+start=64 BCLKs
 startvscl       long    (1 << 12) | 1
