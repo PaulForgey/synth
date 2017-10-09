@@ -68,7 +68,7 @@ class PitchTable(Table):
 
     def __init__(self):
         super(PitchTable, self).__init__("Pitch", "WORD")
-        fs = 44.1e3
+        fs = 48.0e3
         base = self.period / fs * self.hi_c 
 
         for x in range(0,0x400):

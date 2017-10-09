@@ -585,7 +585,7 @@ PRI AdjustBool(ptr, b, v)
         BYTE[ptr] &= !(1 << b)
 
 PRI AdjustLFOFreq(ptr, value)
-    LONG[ptr] := (0 #> value) * 973
+    LONG[ptr] := (0 #> value) * 894
 
 PRI AdjustNote(ptr, value) | p, n, i, d
     d := value - ~~UILastNote_
@@ -831,7 +831,7 @@ PRI ShowBiasSource(ptr)
 
 PRI ShowLFOFreq(ptr, cptr)
     LONG[cptr] := 100
-    result := LONG[ptr] / 973
+    result := LONG[ptr] / 894
 
     ByteMove(@ValueBuf_, si.DecPadded(result, 6), 6)
 

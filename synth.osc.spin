@@ -29,15 +29,13 @@ CON
     Param_Exps
     Param_Fb
     Param_LFO_Bias
-    Param_Master_In
+    Param_In
 
-    Param_Freq
-    Param_Env           = Param_Freq + 13
-    Param_Out           = Param_Env + 13
-    Param_In            = Param_Out + 13
-    Param_Mod           = Param_In + 12
+    Param_Freq                                  ' [13]
+    Param_Env           = Param_Freq + 13       ' [13]
+    Param_Out           = Param_Env + 13        ' [1]
 
-    Param_Max           = Param_Mod + 12
+    Param_Max           = Param_Out + 2
 
     #0
     LFO_Sine
@@ -53,13 +51,12 @@ OBJ
 
 VAR
     LONG Cog_
-    LONG OpValues_[16]
     LONG Params_[Param_Max]
 
-PUB Start(Freqs, EnvsPtr, FbPtr, LFOBiasPtr, InPtr, OutPtr, LFOPtr, LFOShape, Waves, Alg) | i, ptr, mod, sum, j
+PUB Start(FreqsPtr, EnvsPtr, FbPtr, LFOBiasPtr, InPtr, OutPtr, LFOPtr, LFOShape, Waves, Alg) | i, ptr, mod, sum, j
 {{
 Start oscillator bank on a cog
-Freqs:          word array of 13 frequency long pointers (fs/2=$8000_0000)
+FreqsPtr:       word array of 13 frequency long pointers (fs/2=$8000_0000)
 EnvsPtr:        word array of 13 envelope word pointers 
 FbPtr:          byte pointer to global feedback value
 LFOBiasPtr:     long pointer to unsigned bias value centered at $2000_0000
@@ -77,7 +74,9 @@ Alg:            algorithm to arrange oscillators in (0-31)
     Params_[Param_EGs] := tables.EGLogPtr
     Params_[Param_Fb] := FbPtr
     Params_[Param_LFO_Bias] := LFOBiasPtr
-    Params_[Param_Master_In] := InPtr
+    Params_[Param_In] := InPtr
+    Params_[Param_Out] := OutPtr
+    Params_[Param_Out+1] := LFOPtr
 
     ' patch LFO program
     ptr := @@(WORD[@LFOWaveTable][LFOShape])
@@ -98,20 +97,9 @@ Alg:            algorithm to arrange oscillators in (0-31)
     ' establish envelopes and frequencies
     ' 12 operators and 1 LFO
     repeat i from 0 to 12
-        Params_[Param_Freq+i] := WORD[Freqs][i]
+        Params_[Param_Freq+i] := WORD[FreqsPtr][i]
         Params_[Param_Env+i] := WORD[EnvsPtr][i]
     
-    ' outputs of operators
-    repeat i from 0 to 5
-        Params_[Param_Out+i] := @OpValues_[i+1]     ' keep virtual operator zero's index pointing to a zero
-        Params_[Param_Out+i+6] := @OpValues_[i+9]
-    
-    ' output of operator 1, the one we hear
-    Params_[Param_Out] := OutPtr
-
-    ' LFO output
-    Params_[Param_Out+12] := LFOPtr
-
     ' arrange the algorithm
     ptr := @BYTE[algs.AlgTablePtr][Alg * 6]
     repeat i from 0 to 5
@@ -123,6 +111,7 @@ Alg:            algorithm to arrange oscillators in (0-31)
         else
             j := normal_op
 
+        ' patch feedback vs normal operator shift instructions
         LONG[ @@(WORD[@FbTable][i<<1]) ] := j
         LONG[ @@(WORD[@FbTable][(i<<1)+1]) ] := j
 
@@ -131,14 +120,19 @@ Alg:            algorithm to arrange oscillators in (0-31)
         ' low nibble is operator to modulate from
         mod &= $7
 
-        Params_[Param_Mod+i] := @OpValues_[mod]
-        Params_[Param_Mod+i+6] := @OpValues_[8+mod]
+        ' patch source registers of mod and sum instructions
+        sum += CONSTANT((@outs-@entry)/4)
+        mod += CONSTANT((@outs-@entry)/4)
 
-        Params_[Param_In+i] := @OpValues_[sum]
-        if sum == 7
-            Params_[Param_In+i+6] := InPtr
-        else
-            Params_[Param_In+i+6] := @OpValues_[8+sum]
+        j := @@(WORD[@SumTable][i<<1]) 
+        LONG[j] := LONG[j] & CONSTANT(!$1ff) | sum
+        j := @@(WORD[@SumTable][(i<<1)+1]) 
+        LONG[j] := LONG[j] & CONSTANT(!$1ff) | (sum+7)
+
+        j := @@(WORD[@ModTable][i<<1]) 
+        LONG[j] := LONG[j] & CONSTANT(!$1ff) | mod
+        j := @@(WORD[@ModTable][(i<<1)+1]) 
+        LONG[j] := LONG[j] & CONSTANT(!$1ff) | (mod+7)
 
     Cog_ := cognew(@entry, @Params_) + 1
     if Cog_ == 0
@@ -168,369 +162,380 @@ entry
     mov fb, #0                      ' start with feedback parameter at 0    
 
 loop
-    ' the oscillators are unrolled 12 times over. Only the first instance will be commented
+    ' the oscillators are unrolled 12 times over
     ' (macro assembly would be rather nice)
     
-    ' oscillator 0
+    ' oscillator 0 (op1)
     '
-    rdlong r0, g_freqs+0 wz         ' read frequency (fs/2 = $8000_0000)
-    add phases+0, r0                ' advance phase state
-    mov r0, phases+0                ' working phase state
-    rdlong r1, g_mods+0             ' modulation value
-osc0_fb                             ' next instruction is patched to shl r1, fb for feedback operators
-    shl r1, #22                     ' scale: +/- 1 as one full rotation either direction
-    add r0, r1                      ' add modulation to working state
-    rdword r2, g_envs+0             ' read envelope in 4.10 << 1
-    if_z mov phases+0, #0           ' resync oscillator if freq == 0
-    test r0, s90 wz                 ' orient within proper point in quarter arc
-    negnz r0, r0 wc                 ' flip in second half of quadrant, c now set if so
+    add phases+0, freqs+0           ' phase += frequency
+    mov r0, phases+0                ' establish working phase in r0
+osc0_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc0_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
     and r0, smask                   ' remove sign bit
-    shr r0, #19                     ' shift-1 to word offset. rdword will also ignore LSB
-osc0_w
+    rdword r2, g_envs+0             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc0_w                              ' patch: sin/triangle wave
     add r0, g_sine                  ' add table
-    rdword r0, r0                   ' r0 = log(sin(r0)). output format is 4.10 << 1
-    add r0, r2                      ' apply envelope
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
     mov r1, r0                      ' save a copy
-    wrlong outs+0, g_outs+0         ' write prior output (and after reading modulation input)
-    and r0, logmask                 ' isolate lookup table offset
+    rdlong freqs+0, g_freqs+0 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
     add r0, g_exp                   ' add table
-    rdword r0, r0                   ' r0 = exp(r0). output format is in 1.n >> int(log_value)
-    shr r1, #11                     ' shift+1 from word offset
-    shr r0, r1                      ' scale non-fractional part
-    rdlong outs+0, g_ins+0          ' read summation input
-    negc r0, r0                     ' adjust result negative if phase was negative
-    add outs+0, r0                  ' write this output next time around
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+1, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc0_sum                            ' patch: sum in source register
+    add outs+1, outs+0              ' output += sum input
+    if_z mov phases+0, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 1
+    ' oscillator 1 (op2)
     '
-    rdlong r0, g_freqs+1 wz
-    add phases+1, r0
-    mov r0, phases+1
-    rdlong r1, g_mods+1
-osc1_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+1
-    if_z mov phases+1, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc1_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+1, g_outs+1
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+1, g_ins+1
-    negc r0, r0
-    add outs+1, r0
+    add phases+1, freqs+1           ' phase += frequency
+    mov r0, phases+1                ' establish working phase in r0
+osc1_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc1_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+1             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc1_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+1, g_freqs+1 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+2, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc1_sum                            ' patch: sum in source register
+    add outs+2, outs+0              ' output += sum input
+    if_z mov phases+1, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 2
+    ' oscillator 2 (op3)
     '
-    rdlong r0, g_freqs+2 wz
-    add phases+2, r0
-    mov r0, phases+2
-    rdlong r1, g_mods+2
-osc2_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+2
-    if_z mov phases+2, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc2_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+2, g_outs+2
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+2, g_ins+2
-    negc r0, r0
-    add outs+2, r0
+    add phases+2, freqs+2           ' phase += frequency
+    mov r0, phases+2                ' establish working phase in r0
+osc2_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc2_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+2             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc2_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+2, g_freqs+2 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+3, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc2_sum                            ' patch: sum in source register
+    add outs+3, outs+0              ' output += sum input
+    if_z mov phases+2, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 3
+    ' oscillator 3 (op4)
     '
-    rdlong r0, g_freqs+3 wz
-    add phases+3, r0
-    mov r0, phases+3
-    rdlong r1, g_mods+3
-osc3_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+3
-    if_z mov phases+3, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc3_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+3, g_outs+3
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+3, g_ins+3
-    negc r0, r0
-    add outs+3, r0
+    add phases+3, freqs+3           ' phase += frequency
+    mov r0, phases+3                ' establish working phase in r0
+osc3_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc3_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+3             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc3_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+3, g_freqs+3 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+4, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc3_sum                            ' patch: sum in source register
+    add outs+4, outs+0              ' output += sum input
+    if_z mov phases+3, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 4
+    ' oscillator 4 (op5)
     '
-    rdlong r0, g_freqs+4 wz
-    add phases+4, r0
-    mov r0, phases+4
-    rdlong r1, g_mods+4
-osc4_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+4
-    if_z mov phases+4, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc4_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+4, g_outs+4
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+4, g_ins+4
-    negc r0, r0
-    add outs+4, r0
+    add phases+4, freqs+4           ' phase += frequency
+    mov r0, phases+4                ' establish working phase in r0
+osc4_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc4_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+4             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc4_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+4, g_freqs+4 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+5, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc4_sum                            ' patch: sum in source register
+    add outs+5, outs+0              ' output += sum input
+    if_z mov phases+4, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 5
+    ' oscillator 5 (op6)
     '
-    rdlong r0, g_freqs+5 wz
-    add phases+5, r0
-    mov r0, phases+5
-    rdlong r1, g_mods+5
-osc5_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+5
-    if_z mov phases+5, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc5_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+5, g_outs+5
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+5, g_ins+5
-    negc r0, r0
-    add outs+5, r0
+    add phases+5, freqs+5           ' phase += frequency
+    mov r0, phases+5                ' establish working phase in r0
+osc5_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc5_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+5             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc5_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+5, g_freqs+5 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+6, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc5_sum                            ' patch: sum in source register
+    add outs+6, outs+0              ' output += sum input
+    if_z mov phases+5, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 6
+    ' oscillator 6 (op1)
     '
-    rdlong r0, g_freqs+6 wz
-    add phases+6, r0
-    mov r0, phases+6
-    rdlong r1, g_mods+6
-osc6_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+6
-    if_z mov phases+6, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc6_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+6, g_outs+6
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+6, g_ins+6
-    negc r0, r0
-    add outs+6, r0
+    add phases+6, freqs+6           ' phase += frequency
+    mov r0, phases+6                ' establish working phase in r0
+osc6_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc6_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+6             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc6_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+6, g_freqs+6 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+8, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc6_sum                            ' patch: sum in source register
+    add outs+8, outs+0              ' output += sum input
+    if_z mov phases+6, #0           ' resync if frequency is zero
+    ' nop
 
-
-    ' oscillator 7
+    ' oscillator 7 (op2)
     '
-    rdlong r0, g_freqs+7 wz
-    add phases+7, r0
-    mov r0, phases+7
-    rdlong r1, g_mods+7
-osc7_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+7
-    if_z mov phases+7, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc7_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+7, g_outs+7
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+7, g_ins+7
-    negc r0, r0
-    add outs+7, r0
+    add phases+7, freqs+7           ' phase += frequency
+    mov r0, phases+7                ' establish working phase in r0
+osc7_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc7_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+7             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc7_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+7, g_freqs+7 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+9, r0                 ' adjust result negative for bottom quandrants, store in osc output
+osc7_sum                            ' patch: sum in source register
+    add outs+9, outs+0              ' output += sum input
+    if_z mov phases+7, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 8
+    ' oscillator 8 (op3)
     '
-    rdlong r0, g_freqs+8 wz
-    add phases+8, r0
-    mov r0, phases+8
-    rdlong r1, g_mods+8
-osc8_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+8
-    if_z mov phases+8, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc8_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+8, g_outs+8
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+8, g_ins+8
-    negc r0, r0
-    add outs+8, r0
+    add phases+8, freqs+8           ' phase += frequency
+    mov r0, phases+8                ' establish working phase in r0
+osc8_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc8_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+8             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc8_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+8, g_freqs+8 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+10, r0                ' adjust result negative for bottom quandrants, store in osc output
+osc8_sum                            ' patch: sum in source register
+    add outs+10, outs+0             ' output += sum input
+    if_z mov phases+8, #0           ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 9
+    ' oscillator 9 (op4)
     '
-    rdlong r0, g_freqs+9 wz
-    add phases+9, r0
-    mov r0, phases+9
-    rdlong r1, g_mods+9
-osc9_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+9
-    if_z mov phases+9, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc9_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+9, g_outs+9
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+9, g_ins+9
-    negc r0, r0
-    add outs+9, r0
+    add phases+9, freqs+9           ' phase += frequency
+    mov r0, phases+9                ' establish working phase in r0
+osc9_mod                            ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc9_fb                             ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+9             ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc9_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+9, g_freqs+9 wz    ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+11, r0                ' adjust result negative for bottom quandrants, store in osc output
+osc9_sum                            ' patch: sum in source register
+    add outs+11, outs+0             ' output += sum input
+    if_z mov phases+9, #0          ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 10
+    ' oscillator 10 (op5)
     '
-    rdlong r0, g_freqs+10 wz
-    add phases+10, r0
-    mov r0, phases+10
-    rdlong r1, g_mods+10
-osc10_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+10
-    if_z mov phases+10, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc10_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+10, g_outs+10
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+10, g_ins+10
-    negc r0, r0
-    add outs+10, r0
+    add phases+10, freqs+10         ' phase += frequency
+    mov r0, phases+10               ' establish working phase in r0
+osc10_mod                           ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc10_fb                            ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+10            ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc10_w                              ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+10, g_freqs+10 wz  ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+12, r0                ' adjust result negative for bottom quandrants, store in osc output
+osc10_sum                           ' patch: sum in source register
+    add outs+12, outs+0             ' output += sum input
+    if_z mov phases+10, #0          ' resync if frequency is zero
+    ' nop
 
-    ' oscillator 11
+    ' oscillator 11 (op6)
     '
-    rdlong r0, g_freqs+11 wz
-    add phases+11, r0
-    mov r0, phases+11
-    rdlong r1, g_mods+11
-osc11_fb
-    shl r1, #22
-    add r0, r1
-    rdword r2, g_envs+11
-    if_z mov phases+11, #0
-    test r0, s90 wz
-    negnz r0, r0 wc
-    and r0, smask
-    shr r0, #19
-osc11_w
-    add r0, g_sine
-    rdword r0, r0
-    add r0, r2
-    mov r1, r0
-    wrlong outs+11, g_outs+11
-    and r0, logmask
-    add r0, g_exp
-    rdword r0, r0
-    shr r1, #11
-    shr r0, r1
-    rdlong outs+11, g_ins+11
-    negc r0, r0
-    add outs+11, r0
+    add phases+11, freqs+11         ' phase += frequency
+    mov r0, phases+11               ' establish working phase in r0
+osc11_mod                           ' patch: modulation in source register
+    mov r1, outs+0                  ' modulation value
+osc11_fb                            ' patch: scale by feedback value or fixed
+    shl r1, #22                     ' scale modulation
+    add r0, r1                      ' working phase += modulation
+    test r0, s90 wz                 ' left/right quadrants -> z
+    negnz r0, r0 wc                 ' flip per left/right, top/botton quadrants -> c
+    and r0, smask                   ' remove sign bit
+    rdword r2, g_envs+11            ' read envelope value
+    shr r0, #19                     ' scale to word offset in table
+osc11_w                             ' patch: sin/triangle wave
+    add r0, g_sine                  ' add table
+    rdword r0, r0                   ' r0=log(sin(r0)) (4.10 << 1)
+    add r0, r2                      ' apply envelope value
+    mov r1, r0                      ' save a copy
+    rdlong freqs+11, g_freqs+11 wz  ' read frequency value
+    and r0, logmask                 ' lookup table offset
+    add r0, g_exp                   ' add table
+    rdword r0, r0                   ' r0 = exp(r0) (1.n >> int(log_value))
+    shr r1, #11                     ' integer part of r1 (shifted extra bit from word offset)
+    shr r0, r1                      ' scale according to r1
+    negc outs+13, r0                ' adjust result negative for bottom quandrants, store in osc output
+osc11_sum                           ' patch: sum in source register
+    add outs+13, outs+0             ' output += sum input
+    if_z mov phases+11, #0          ' resync if frequency is zero
+    ' nop
 
     ' LFO
     ' 
@@ -563,22 +568,31 @@ lfo_wave
     rdbyte fb, g_fb                 ' update global feedback
     negc r0, r0                     ' negate if needed
     add r0, lfo_bias                ' apply bias (envelope scale)
-    wrlong r0, g_outs+12            ' write LFO output
+    wrlong r0, g_outs+1             ' write LFO output
 
 lfo_skip
     shr lfsr, #1 wc                 ' advance noise generator
     if_c xor lfsr, lfsr_taps
 
     rdlong in, g_in                 ' update master input
-    add outs+0, outs+6              ' sum the two op1 outputs..
-    add outs+0, in                  ' ..together and from master input
+    add in, outs+1                  ' sum the two op1 outputs (non destructively)
+    add in, outs+8
+    wrlong in, g_outs               ' send output
 
-    rdlong lfo_bias, g_lfo_bias     ' update global LFO bias
-    ' LFO+misc = 152 clocks
-    ' 128 * 12 + 152 = 1688; 126 to spare
+    ' 112 * 12 ops = 1344
+    ' LFO = 128
+    ' misc = 30 (including minimum wait)
 
     waitpeq lrmask, lrmask
+
+    rdlong lfo_bias, g_lfo_bias     ' update global LFO bias
     jmp #loop
+
+    ' after wait:
+    ' 12..27 clocks
+
+    ' TOTAL: 1529
+    ' MAX:   1814 (@44.1k) , 1666 (@48k)
 
 ' constants
 smask       long    $7fff_ffff      ' not the sign bit
@@ -589,8 +603,9 @@ lfsr_taps   long    $8020_0002      ' x^32+x^22+x^2+1
 
 ' global state
 ' oscillator state values are initialized to prevent noise on startup
+freqs       long    0[12]           ' 12 operators (LFO reads directory from global)
 phases      long    0[13]           ' 12 operators and an LFO
-outs        long    0[12]
+outs        long    0[14]           ' two zeros, 12 operators (LFO writes directory to global)
 lfsr        long    $1f0            ' noise register
 lfo_bias    long    $2000_0000      ' LFO bias (initialized to center)
 in          long    0               ' master input
@@ -612,9 +627,7 @@ g_lfo_bias  res     1               ' global LFO bias
 g_in        res     1               ' master audio input
 g_freqs     res     13              ' frequency inputs: 12 operators, 1 LFO
 g_envs      res     13              ' envelope inputs: 12 operators, 1 LFO
-g_outs      res     13              ' oscillator output for audio, modulation input or summation input (last is LFO)
-g_ins       res     12              ' summation inputs, often from location of '0' constant, otherwise one other oscillator output
-g_mods      res     12              ' modulator inputs (tie to oscillator outputs)
+g_outs      res     2               ' oscillator output for audio, LFO
 
             fit
 
@@ -686,3 +699,19 @@ WORD    @osc2_w, @osc8_w
 WORD    @osc3_w, @osc9_w
 WORD    @osc4_w, @osc10_w
 WORD    @osc5_w, @osc11_w
+
+ModTable
+WORD    @osc0_mod, @osc6_mod
+WORD    @osc1_mod, @osc7_mod
+WORD    @osc2_mod, @osc8_mod
+WORD    @osc3_mod, @osc9_mod
+WORD    @osc4_mod, @osc10_mod
+WORD    @osc5_mod, @osc11_mod
+
+SumTable
+WORD    @osc0_sum, @osc6_sum
+WORD    @osc1_sum, @osc7_sum
+WORD    @osc2_sum, @osc8_sum
+WORD    @osc3_sum, @osc9_sum
+WORD    @osc4_sum, @osc10_sum
+WORD    @osc5_sum, @osc11_sum

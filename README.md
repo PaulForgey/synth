@@ -14,15 +14,15 @@ Cheap, simple but also useful
 * 4 stage envelope
 * Pitch envelope
 * 8 voice polyphonic
-* 20 bit sample depth of output (each oscillator is 12 bit)
-* 44.1K sample rate
+* 16 bit sample depth output (each oscillator is 12 bit)
+* 48K sample rate
 * each operator may use either sine or triangle waves as modulator or carrier
 
 In some ways, the operation is similar to that of a DX7. In fact, most DX7 patches could be approximately transcribed. There are
 a few major differences and limitations from a DX7:
 
 * The LFOs are single tap, so they cannot resync per voice
-* The oscillators do not resync
+* The oscillators do not resync under optional control
 * Voices do not have an LFO delay
 * Envelopes are more linear than the DX7, so they lack some of the subtlely the DX7's EG curve had
 
@@ -65,9 +65,6 @@ Any device used must be capable of erasing a 4KB sector.
 
 To avoid another external component, the flash SPI pins are hooked up to a separate set of Propeller pins. To get the spare pins
 back, use a buffer like a '244 to supply all devices' `DIN`, `CLK`, and `RESET` inputs.
-
-Line level output from the DAC comes from only the left output, and requires an external amplifier to drive. The built-in
-headphone amplifier is not used as driving both ears from a single output would overload the chip with 16 ohm headphones.
 
 The output of the DAC was suprisingly quiet and stable on the breadboard. If the `DACDAT` related lines are left floating, it
 seems rather sensitive to shifting in random noise. For power down, programming or if the Propeller crashes, I recommend 100K

@@ -154,7 +154,7 @@ Load up a default patch, algorithm 1, single operator 1 for a sine wave, organ s
         BYTE[ptr++] := $ff
     LevelScales_[0] := $ff
     repeat i from 0 to 3
-        LFOFreqs_[i] := 97388   ' ~1 Hz
+        LFOFreqs_[i] := 89478   ' ~1 Hz
         LFOLevels_[i] := $ff
     CopyTo_ := 1
 

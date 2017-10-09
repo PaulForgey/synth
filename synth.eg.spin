@@ -125,14 +125,14 @@ ClkPin      : pin assigned to the DAC's master clock
 PUB InitDAC(pin, ClkPin) | csb
     DIRA |= (1 << ClkPin)
     CTRA := CONSTANT( %10_100 << 23 ) | ClkPin  ' PLL /8 single ended    
-    FRQA := $1210_385d
+    FRQA := bclk
 
     ' reset
     io.SendSpi(pin, 16, DAC_Reset)
     ' power up
     io.SendSpi(pin, 16, CONSTANT(DAC_Power | %0011_0111))
-    ' set 44.1K, 256x base oversample (11.2896 MHz master clock)
-    io.SendSpi(pin, 16, CONSTANT(DAC_Sample | %00_1000_00))
+    ' set 48K, 256x base oversample (12.288 MHz master clock)
+    io.SendSpi(pin, 16, CONSTANT(DAC_Sample | %00_0000_00))
     ' set 16 bit DSP mode A
     io.SendSpi(pin, 16, CONSTANT(DAC_IF | %0001_00_11))
     ' select DAC
@@ -282,7 +282,7 @@ oploop
 egmax           long    15 << 11
 lutmask         long    $3ff << 1
 pitch0          long    $2000_0000      ' unsigned bias offset from envelope midpoint to 0
-bclk            long    $1210_385c      ' 5_644_800 * 16 / 32 = 2_822_400 (fs*64 = 44100)
+bclk            long    $13A9_2A30      ' 6_144_000 * 16 / 32 = 3_072_000 (fs*64 = 48000)
 dacmask         long    $00_70_00_00
 dacvscl         long    (1 << 12) | 63  ' dac+start=64 BCLKs
 startvscl       long    (1 << 12) | 1
