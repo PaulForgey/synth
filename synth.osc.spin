@@ -45,6 +45,8 @@ CON
     LFO_Square
     LFO_Noise
 
+    outs                = $1e0
+
 OBJ
     tables      : "synth.tables"
     algs        : "synth.alg.table"
@@ -116,14 +118,11 @@ Alg:            algorithm to arrange oscillators in (0-31)
         LONG[ @@(WORD[@FbTable][(i<<1)+1]) ] := j
 
         ' high nibble is operator to sum output from
-        sum := (mod >> 4) & $7
+        sum := ((mod >> 4) & $7) + outs
         ' low nibble is operator to modulate from
-        mod &= $7
+        mod := (mod & $7) + outs
 
         ' patch source registers of mod and sum instructions
-        sum += CONSTANT((@outs-@entry)/4)
-        mod += CONSTANT((@outs-@entry)/4)
-
         j := @@(WORD[@SumTable][i<<1]) 
         LONG[j] := LONG[j] & CONSTANT(!$1ff) | sum
         j := @@(WORD[@SumTable][(i<<1)+1]) 
@@ -160,6 +159,15 @@ entry
     djnz r3, #:param                ' loop
 
     mov fb, #0                      ' start with feedback parameter at 0    
+
+    mov r3, #13                     ' clear outputs (avoid noise when re-initing)
+    mov r2, #outs
+:clear
+    movd :clear0, r2
+    add r2, #1
+:clear0
+    mov 0-0, #0
+    djnz r3, #:clear
 
 loop
     ' the oscillators are unrolled 12 times over
@@ -586,12 +594,13 @@ lfo_skip
     waitpeq lrmask, lrmask
 
     rdlong lfo_bias, g_lfo_bias     ' update global LFO bias
+    ' nop
     jmp #loop
 
     ' after wait:
-    ' 12..27 clocks
+    ' 16..31 clocks
 
-    ' TOTAL: 1529
+    ' TOTAL: 1533
     ' MAX:   1814 (@44.1k) , 1666 (@48k)
 
 ' constants
@@ -602,13 +611,11 @@ s90         long    $4000_0000      ' phase counter bit indicating 90 degrees
 lfsr_taps   long    $8020_0002      ' x^32+x^22+x^2+1
 
 ' global state
-' oscillator state values are initialized to prevent noise on startup
-freqs       long    0[12]           ' 12 operators (LFO reads directory from global)
-phases      long    0[13]           ' 12 operators and an LFO
-outs        long    0[14]           ' two zeros, 12 operators (LFO writes directory to global)
 lfsr        long    $1f0            ' noise register
 lfo_bias    long    $2000_0000      ' LFO bias (initialized to center)
-in          long    0               ' master input
+in          res     1               ' master input
+phases      res     13              ' 12 operators and an LFO
+freqs       res     12              ' 12 operators (LFO reads directly from global)
 
 ' working registers
 r0          res     1
@@ -629,7 +636,7 @@ g_freqs     res     13              ' frequency inputs: 12 operators, 1 LFO
 g_envs      res     13              ' envelope inputs: 12 operators, 1 LFO
 g_outs      res     2               ' oscillator output for audio, LFO
 
-            fit
+            fit     outs
 
 lfo_sin_q
 lfo_triangle_q                      ' patch for sine and triangle
