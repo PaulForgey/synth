@@ -30,9 +30,9 @@ AlgTable
 ' Each entry is a series of 6 operators layed out as:
 ' 76543210
 ' ||||||||
-' |||||+==-: mod, 1 based, phase modulated by the output of this operator, or 0 for none
+' |||||+++-: mod, 1 based, phase modulated by the output of this operator, or 0 for none
 ' ||||+----: fb source, used by UI only (ignored by osc), indicates this operator provides feedback
-' |+==-----: sum, 1 based, output sums from the output of this operator, or 0 for none
+' |+++-----: sum, 1 based, output sums from the output of this operator, or 0 for none
 ' +--------: fb, this is the feedback operator
 
 ' Algorithm 1
