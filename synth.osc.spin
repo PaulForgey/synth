@@ -305,8 +305,6 @@ triangle_w                          ' patch for non-sine linear outputs
 
 feedback_op                         ' patch for feedback operator
     shl r1, fb
-normal_op                           ' patch for normal, non feedback operator
-    shl r1, #22
 
 ' an oscillator
 osc0

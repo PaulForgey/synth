@@ -101,9 +101,9 @@ StorePin    : CS pin assigned to flash
     UpdateAll
     SetModulation(0)
     SetPitchWheel($2000)
-    ShowSelection
-    Events_ |= Event_MidiConfig | Event_Reload
+    Events_ |= CONSTANT(Event_MidiConfig | Event_Reload)
     DisplayState_ := display#Sleep_Normal
+    SetSelection(data#Param_Load)
 
 PUB Run | b, c
 {{
@@ -139,7 +139,7 @@ s   : TRUE if received valid data, FALSE to otherwise re-load from flash or fail
             BYTE[dptr++] := BYTE[sptr++] | (n & $80)
         sptr++
 
-    Events_ |= (Event_Reload | Event_Silence)
+    Events_ |= CONSTANT(Event_Reload | Event_Silence)
     UpdateAll
 
 PUB Buffer
