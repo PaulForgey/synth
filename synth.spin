@@ -145,10 +145,13 @@ PRI MidiControl
         MidiControl_ := io.RecvMidiControl
     return MidiControl_
 
-PRI MidiData(Ptr, Size)
-    result := io.RecvMidiData(Ptr, Size)
-    if result
+PRI MidiData(Ptr, Size) | n
+    n := io.RecvMidiData(Ptr, Size)
+    if n => 0
         MidiControl_ := 0
+        if n == Size
+            return TRUE
+    return FALSE
 
 ' top level MIDI parsing
 PRI MidiLoop | m, c
@@ -220,7 +223,7 @@ PRI OnMidiSysEx | d
     d := 0
     ' be a bastard and use $70, $7f, $7f as our three byte ID hoping it doesn't stample someone
     if MidiData(@d, 3) and d == $7f7f70
-        result := io.RecvMidiBulk(patch.Buffer, patch#BufferLength)
+        result := (io.RecvMidiBulk(patch.Buffer, patch#BufferLength) == patch#BufferLength)
         patch.LoadFromMidi(result)
 
 ' parsed MIDI event handling

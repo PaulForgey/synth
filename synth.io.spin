@@ -166,41 +166,42 @@ if a non-control byte is in the receive buffer, it is discarded
 PUB RecvMidiData(MsgPtr, Size) | n
 {{
 expect and receive Size bytes of midi data into byte array MsgPtr
-if all Size control bytes cannot be read without blocking, return FALSE and do not advance the read buffer
-if a control byte is encountered before Size bytes, return all data bytes leaving the control byte in the read buffer
 
 realtime messages are handled differently by being ignored.
 If they are to ever be handled, it will be over a different mechanism invisible to this method.
+
+returns length of data read. If < Size, an uncomsumed control byte was encountered
+returns -1 if complete message has not yet been received
 }}
     n := (MidiRecvPtr - MidiReadPtr) & BufMask
     if n < Size
-        return FALSE
-    
+        return -1
+
+    result := 0
     repeat while Size--
         n := MidiBuffer[MidiReadPtr]
         if n & $80
             quit
         BYTE[MsgPtr++] := n
         MidiReadPtr := (MidiReadPtr+1) & BufMask
-    
-    return TRUE
+        result++
 
 PUB RecvMidiBulk(MsgPtr, Size) | n
 {{
 receive, blocking if necessary, Size bytes of large midi data into byte array MsgPtr
 This is callable after reading a header using RecvMidiData, e.g. determining a SYSEX message is relevant
 
-returns FALSE if a control byte (unconsumed) is encountered before Size bytes are read
+returns length of data read. If < Size, an uncomsumed control byte was encountered
 }}
+    result := 0
     repeat while Size--
         repeat while MidiRecvPtr == MidiReadPtr
         n := MidiBuffer[MidiReadPtr]
         if n & $80
-            return FALSE
+            return
         BYTE[MsgPtr++] := n
         MidiReadPtr := (MidiReadPtr+1) & BufMask
-
-    return TRUE
+        result++
 
 PUB SendSpi(pin, bits, out)
 {{
@@ -242,13 +243,14 @@ entry
     mov button_col, #%001_000_000
     shl button_col, button_pin
     
-    rdword button_ptr, ptr
+    rdword g_button, ptr
     add ptr, #4
 
     rdbyte r0, ptr
     add ptr, #4
     mov midi_pin, #1
     shl midi_pin, r0                    ' midi pin mask
+    mov midi_pos, #0                    ' initialize midi task register
     
     rdbyte r0, ptr
     add ptr, #4
@@ -256,17 +258,17 @@ entry
     shl debug_pin, r0                   ' debug pin mask
     or DIRA, debug_pin
 
-    rdword channel_ptr, ptr             ' midi channel
+    rdword g_channels, ptr              ' midi channels
     add ptr, #4
-    rdword midi_buf, ptr                ' midi buffer
+    rdword g_midi, ptr                  ' midi buffer
     add ptr, #4
-    rdword midi_ptr, ptr                ' midi buffer pointer
+    rdword g_midi_ptr, ptr              ' midi buffer pointer
     add ptr, #4
-    rdword spi_data_ptr, ptr            ' spi output
+    rdword g_spi_data, ptr              ' spi output
     add ptr, #4
-    rdword spi_size_ptr, ptr            ' spi pin/word size
+    rdword g_spi_size, ptr              ' spi pin/word size
     add ptr, #4
-    rdword debug_ptr, ptr               ' debug output
+    rdword g_debug, ptr                 ' debug output
 
     mov midi_task, #midi
     mov spi_task, #spi
@@ -274,20 +276,20 @@ entry
 
 ' button scanning task
 button
-    mov :scan, button_col               ' set rightmost button (0)
-    mov :count, #3                      ' 3 buttons
-    mov :ptr, button_ptr                ' reset value pointer
+    mov button_scan, button_col         ' set rightmost button (0)
+    mov button_count, #3                ' 3 buttons
+    mov button_ptr, g_button            ' reset value pointer
 
 :loop
     andn OUTA, button_mask              ' light it up (which also selects it for reading)
-    or OUTA, :scan
+    or OUTA, button_scan
     mov button_wakeup, CNT
     add button_wakeup, button_clocks    ' poll for this long if no activity
 
 :read
-    mov :input, INA
-    shr :input, button_pin
-    and :input, #%111 wz                ' isolate the switches
+    mov button_input, INA
+    shr button_input, button_pin
+    and button_input, #%111 wz          ' isolate the switches
     if_nz jmp #:value
 
     jmpret button_task, midi_task       ' wake up on button activity or polling interval
@@ -299,19 +301,19 @@ button
     
 :next
     andn OUTA, button_mask              ' let inputs settle
-    shl :scan, #1                       ' light up next button
-    add :ptr, #4                        ' move to next value
-    djnz :count, #:loop
+    shl button_scan, #1                 ' light up next button
+    add button_ptr, #4                  ' move to next value
+    djnz button_count, #:loop
     jmp #button
 
 :value                                  ' a button has done something
-    test :input, #%100 wz               ' push?
+    test button_input, #%100 wz         ' push?
     if_z jmp #:wait_rotate
 
 :wait_push
-    mov :input, INA
-    shr :input, button_pin
-    test :input, #%100 wz               ' wait for un-push
+    mov button_input, INA
+    shr button_input, button_pin
+    test button_input, #%100 wz         ' wait for un-push
 
     if_z jmp #:push
     
@@ -319,9 +321,9 @@ button
     jmp #:wait_push
 
 :push
-    rdlong r0, :ptr                     ' set high bit of button value
+    rdlong r0, button_ptr               ' set high bit of button value
     or r0, sign
-    wrlong r0, :ptr
+    wrlong r0, button_ptr
     jmp #:next
     
 :wait_rotate
@@ -345,20 +347,15 @@ button
     jmp #:wait_rotate0
 
 :rotate
-    rdlong r0, :ptr
+    rdlong r0, button_ptr
     test r0, sign wc                    ' preserve push state
-    test :input, #%001 wz               ' check for up or down
+    test button_input, #%001 wz         ' check for up or down
     if_z add r0, #1
     if_nz sub r0, #1
     muxc r0, sign                       ' restore push state
-    wrlong r0, :ptr
+    wrlong r0, button_ptr
 
     jmp #:next
-    ' task local registers
-:input      long    0
-:ptr        long    0
-:count      long    0
-:scan       long    0
 
 ' midi reception task
 midi
@@ -380,8 +377,8 @@ recv
     
     add midi_wakeup, midi_clocks        ' wake up on next period
 
-    mov :bits, #9                       ' clock in 9 bits
-    mov :m, #0                          ' clear shift register
+    mov midi_bits, #9                   ' clock in 9 bits
+    mov midi_m, #0                      ' clear shift register
     
 :bit
     jmpret midi_task, spi_task          ' wait for wakeup
@@ -394,51 +391,44 @@ recv
     add midi_wakeup, midi_clocks        ' wake up on next period
 
     test midi_pin, INA wc               ' data bit into C
-    rcr :m, #1                          ' shift it in
-    djnz :bits, #:bit                   ' do all 9
+    rcr midi_m, #1                      ' shift it in
+    djnz midi_bits, #:bit               ' do all 9
 
     if_nc jmp #midi                     ' stop bit should be a 1
 
-    shr :m, #(32-9)                     ' move to lower 8
+    shr midi_m, #(32-9)                 ' move to lower 8
 
-    and :m, #$ff
-    test :m, #$80 wz                    ' control message?
+    and midi_m, #$ff
+    test midi_m, #$80 wz                ' control message?
     if_z jmp #:value
 
-    cmp :m, #$f0 wc                     ' system common message?
-    if_nc test :m, #$08 wz              ' if system common, realtime?
+    cmp midi_m, #$f0 wc                 ' system common message?
+    if_nc test midi_m, #$08 wz          ' if system common, realtime?
     if_nc_and_nz jmp #midi              ' toss realtime
 
-    rdword :channel_mask, channel_ptr   ' update channel mask
-    or :channel_mask, :all              ' provide a "not filtered" mask
+    rdword midi_mask, g_channels        ' update channel mask
+    or midi_mask, midi_all              ' provide a "not filtered" mask
 
-    if_nc mov :channel, #$10            ' not filtered
-    if_c mov :channel, :m
-    if_c and :channel, #$0f             ' channel number of current control message
+    if_nc mov midi_channel, #$10        ' not filtered
+    if_c mov midi_channel, midi_m
+    if_c and midi_channel, #$0f         ' channel number of current control message
  
 :value
     mov r0, #1
-    shl r0, :channel
-    test r0, :channel_mask wz
+    shl r0, midi_channel
+    test r0, midi_mask wz
     if_z jmp #midi
 
-    mov :mp, midi_buf
-    add :mp, midi_pos
-    wrbyte :m, :mp                      ' store to output
+    mov midi_mp, g_midi
+    add midi_mp, midi_pos
+    wrbyte midi_m, midi_mp              ' store to output
 
     add midi_pos, #1
     and midi_pos, #BufMask
     
-    wrbyte midi_pos, midi_ptr           ' update waiter to where new data is
+    wrbyte midi_pos, g_midi_ptr          ' update waiter to where new data is
 
     jmp #midi
-    ' task local registers
-:m              long    0
-:mp             long    0
-:bits           long    0
-:channel_mask   long    0
-:channel        long    0
-:all            long    $1_0000
 
 ' spi output task
 spi
@@ -457,56 +447,51 @@ spi
     or OUTA, #%100_0000
 
 :wait
-    rdword :size, spi_size_ptr wz       ' output waiting?
+    rdword spi_size, g_spi_size wz      ' output waiting?
     if_nz jmp #:send
     jmpret spi_task, debug_task
     jmp #:wait
 
 :send
-    rdlong :out, spi_data_ptr           ' pre bit reversed 
-    mov :cs, #1
-    shl :cs, :size                      ' select CS pin
-    wrword zero, spi_size_ptr           ' acknowledge we got it
-    shr :size, #5                       ' how many bits
+    rdlong spi_out, g_spi_data          ' pre bit reversed
+    mov spi_cs, #1
+    shl spi_cs, spi_size                ' select CS pin
+    wrword zero, g_spi_size             ' acknowledge we got it
+    shr spi_size, #5                    ' how many bits
 
-    andn OUTA, :cs                      ' CS lo
+    andn OUTA, spi_cs                   ' CS lo
 :bit
     andn OUTA, #%10                     ' CLK lo
     jmpret spi_task, debug_task
-    shr :out, #1 wc
+    shr spi_out, #1 wc
     muxc OUTA, #1                       ' data bit to DIN
     jmpret spi_task, debug_task
     or OUTA, #%10                       ' CLK hi
     jmpret spi_task, debug_task
-    djnz :size, #:bit
+    djnz spi_size, #:bit
 
-    or OUTA, :cs                        ' CS hi
+    or OUTA, spi_cs                     ' CS hi
     jmp #:wait
-    ' task local registers
-:bits           long    0
-:size           long    0
-:out            long    0
-:cs             long    0
 
 ' debug output task
 debug
-    rdbyte :d, debug_ptr wz             ' check for non-0 byte to write
+    rdbyte debug_d, g_debug wz          ' check for non-0 byte to write
     if_nz jmp #:out
     
     jmpret debug_task, button_task
     jmp #debug
     
 :out
-    or :d, #$100                        ' add stop bit (LSB shifted out first)
-    wrbyte zero, debug_ptr              ' acknowledge output byte
-    shl :d, #2
-    or :d, #1                           ' add start bits
-    mov :bits, #11
+    or debug_d, #$100                   ' add stop bit (LSB shifted out first)
+    wrbyte zero, g_debug                ' acknowledge output byte
+    shl debug_d, #2
+    or debug_d, #1                      ' add start bits
+    mov debug_bits, #11
     mov debug_wakeup, CNT
     
 :bit
     add debug_wakeup, debug_clocks
-    ror :d, #1 wc                       ' shift out
+    ror debug_d, #1 wc                  ' shift out
     muxc OUTA, debug_pin
     
 :wait
@@ -516,39 +501,60 @@ debug
     cmps t, #0 wc
     if_nc jmp #:wait
 
-    djnz :bits, #:bit                   ' next bit
+    djnz debug_bits, #:bit              ' next bit
 
     jmp #debug
-    ' task local registers
-:d      long    0
-:bits   long    0
 
 ' constants    
 button_clocks   long    200_000
 midi_clocks     long    2560            ' 31250 baud
 debug_clocks    long    694             ' 115200 baud
 midi_start      long    2560 >> 1       ' half period into midi bit
-sign            long    $8000_0000
-midi_pos        long    0               ' position where to write next MIDI byte within buffer
+sign            long    $8000_0000      ' high bit
+midi_all        long    $1_0000         ' pseudo channel bypassing filter
 zero            long    0
 
 ' general purpose registers not preserved between tasks
 r0              res     1
 ptr             res     1
 
+' button task
+button_scan     res     1
+button_count    res     1
+button_ptr      res     1
+button_input    res     1
+
+' midi task
+midi_bits       res     1
+midi_pos        res     1
+midi_m          res     1
+midi_mp         res     1
+midi_mask       res     1
+midi_channel    res     1
+
+' spi task
+spi_bits        res     1
+spi_size        res     1
+spi_out         res     1
+spi_cs          res     1
+
+' debug task
+debug_d         res     1
+debug_bits      res     1
+
 ' parameters
 button_pin      res     1
 button_mask     res     1
 button_col      res     1
-button_ptr      res     1
+g_button        res     1
 midi_pin        res     1
 debug_pin       res     1
-channel_ptr     res     1
-midi_buf        res     1
-midi_ptr        res     1
-spi_data_ptr    res     1
-spi_size_ptr    res     1
-debug_ptr       res     1
+g_channels      res     1
+g_midi          res     1
+g_midi_ptr      res     1
+g_spi_data      res     1
+g_spi_size      res     1
+g_debug         res     1
 
 ' task switch data
 button_wakeup   res     1
